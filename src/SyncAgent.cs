@@ -109,7 +109,14 @@ public sealed class SyncAgent : IDisposable
         if (!Enabled) { await Task.Delay(Timeout.Infinite, token); return; }
         while (!token.IsCancellationRequested)
         {
-            await SyncOnceAsync(token);
+            int acknowledged = await SyncOnceAsync(token);
+            // After an outage, drain a full queued batch rapidly, but keep requests
+            // sequential and bounded so the receiver is not flooded.
+            if (_failures == 0 && acknowledged >= _cfg.SyncBatchSize)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(150), token);
+                continue;
+            }
             int multiplier = 1 << Math.Min(6, _failures);
             int seconds = Math.Min(300, _cfg.SyncIntervalSeconds * multiplier);
             await Task.Delay(TimeSpan.FromSeconds(seconds), token);
