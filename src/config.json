@@ -9,5 +9,10 @@
   "DedupWindowMs": 2000,
   "NoReadValue": "NOREAD",
   "ApiPort": 8088,
-  "DatabasePath": ""
+  "DatabasePath": "",
+  "SyncEnabled": false,
+  "CollectorId": "SMT-LINE01-PC01",
+  "ServerUrl": "",
+  "SyncIntervalSeconds": 5,
+  "SyncBatchSize": 50
 }
