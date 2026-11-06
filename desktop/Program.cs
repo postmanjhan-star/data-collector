@@ -19,6 +19,7 @@ internal static class Program
                 var settings = System.Text.Json.JsonSerializer.Deserialize<CollectorOptions>(File.ReadAllText(template))
                     ?? throw new InvalidDataException("Invalid configuration template");
                 settings.Validate();
+                DiscoverySelfTest.Run();
                 using var icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
                 if (icon is null) throw new InvalidOperationException("Desktop icon not embedded");
                 return 0;
