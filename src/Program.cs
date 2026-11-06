@@ -538,6 +538,7 @@ public static class SelfTest
                     || root.GetProperty("duplicates").GetInt64() != 1 || root.GetProperty("no_reads").GetInt64() != 1)
                     throw new Exception("SQLite / dedup / no-read test failed");
             }
+            SyncSelfTest.Run();
             Console.WriteLine("SELFTEST PASS: TCP framing, SQLite, duplicate marking and NOREAD.");
             return 0;
         }
@@ -617,6 +618,7 @@ public static class Program
         try
         {
             if (args[0] == "selftest") return SelfTest.Run();
+            if (args[0] == "sync-e2e") return await SyncIntegrationTest.RunAsync(args, stop.Token);
             if (args[0] == "init-config")
             {
                 Console.WriteLine(ConfigBootstrap.EnsureDefault());
