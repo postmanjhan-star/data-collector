@@ -28,6 +28,7 @@ else {
 }
 $logFile = Join-Path $env:RUNNER_TEMP "HF811Collector-install-smoke-$InstallMode.log"
 $exe = Join-Path $appDir 'HF811Collector.exe'
+$desktopExe = Join-Path $appDir 'HF811Collector.Desktop.exe'
 $uninstaller = Join-Path $appDir 'unins000.exe'
 
 if (Test-Path -LiteralPath $appDir) {
@@ -50,9 +51,10 @@ try {
 
     $required = @(
         $exe,
+        $desktopExe,
         (Join-Path $appDir 'config.default.json'),
-        (Join-Path $groupDir '01 啟動 Collector.lnk'),
-        (Join-Path $groupDir '02 啟動本機模擬掃描器.lnk'),
+        (Join-Path $groupDir 'HF811 Collector.lnk'),
+        (Join-Path $groupDir '02 本機模擬掃描器（CLI）.lnk'),
         (Join-Path $groupDir '03 編輯 HF811 設定.lnk'),
         (Join-Path $groupDir '04 掃描資料與日誌資料夾.lnk')
     )
@@ -87,7 +89,10 @@ try {
 
     & $exe selftest
     if ($LASTEXITCODE -ne 0) { throw "Installed executable self-test exited $LASTEXITCODE" }
-    Write-Host "INSTALLER SMOKE TEST PASS: $InstallMode installation, shortcuts, config and self-test." -ForegroundColor Green
+    Write-Host "Testing desktop executable and embedded icon..." -ForegroundColor Cyan
+    $desktopCheck = Start-Process -FilePath $desktopExe -ArgumentList '--selftest' -Wait -PassThru
+    if ($desktopCheck.ExitCode -ne 0) { throw "Desktop smoke-test exited $($desktopCheck.ExitCode)" }
+    Write-Host "INSTALLER SMOKE TEST PASS: $InstallMode installation, shortcuts, config, CLI and GUI self-tests." -ForegroundColor Green
 }
 finally {
     if (Test-Path -LiteralPath $uninstaller -PathType Leaf) {
