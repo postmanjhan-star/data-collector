@@ -15,6 +15,11 @@ internal sealed class CollectorOptions
     public string NoReadValue { get; set; } = "NOREAD";
     public int ApiPort { get; set; } = 8088;
     public string DatabasePath { get; set; } = "";
+    public bool SyncEnabled { get; set; } = false;
+    public string CollectorId { get; set; } = "SMT-LINE01-PC01";
+    public string ServerUrl { get; set; } = "";
+    public int SyncIntervalSeconds { get; set; } = 5;
+    public int SyncBatchSize { get; set; } = 50;
 
     public void Validate()
     {
@@ -28,6 +33,8 @@ internal sealed class CollectorOptions
             throw new ArgumentException("逾時及去重設定必須為有效的正整數");
         if (string.IsNullOrWhiteSpace(DeviceId)) throw new ArgumentException("請輸入設備代號");
         if (string.IsNullOrWhiteSpace(NoReadValue)) throw new ArgumentException("請輸入 NOREAD 代表值");
+        HF811Collector.ServerSyncSettings.Validate(SyncEnabled, CollectorId, ServerUrl,
+            SyncIntervalSeconds, SyncBatchSize);
     }
 
     public HF811Collector.Settings ToCore() => new()
@@ -42,6 +49,11 @@ internal sealed class CollectorOptions
         DedupWindowMs = DedupWindowMs,
         NoReadValue = NoReadValue,
         ApiPort = ApiPort,
+        SyncEnabled = SyncEnabled,
+        CollectorId = CollectorId,
+        ServerUrl = ServerUrl,
+        SyncIntervalSeconds = SyncIntervalSeconds,
+        SyncBatchSize = SyncBatchSize,
         DatabasePath = string.IsNullOrWhiteSpace(DatabasePath)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "HF811Collector", "data", "scans.sqlite3")
