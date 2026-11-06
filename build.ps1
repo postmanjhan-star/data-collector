@@ -16,7 +16,19 @@ if (-not (Test-Path $exe)) { throw 'Published HF811Collector.exe not found' }
 Write-Host 'Running C# self-test...' -ForegroundColor Cyan
 & $exe selftest
 if ($LASTEXITCODE -ne 0) { throw 'C# self-test failed' }
-if ($SkipInstaller) { Write-Host "Published $exe. Installer skipped."; exit 0 }
+$desktopDest = Join-Path $PSScriptRoot 'dist\win-x64-desktop'
+Write-Host 'Publishing self-contained Windows Forms tray application...' -ForegroundColor Cyan
+& dotnet publish .\desktop\HF811Collector.Desktop.csproj -c Release -r win-x64 --self-contained true `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:PublishTrimmed=false -p:DebugType=none -o $desktopDest
+if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed for Desktop GUI' }
+$desktopExe = Join-Path $desktopDest 'HF811Collector.Desktop.exe'
+if (-not (Test-Path $desktopExe)) { throw 'Desktop application executable not found' }
+Copy-Item -LiteralPath .\src\config.json -Destination (Join-Path $desktopDest 'config.default.json') -Force
+Write-Host 'Running installed-asset GUI self-test...' -ForegroundColor Cyan
+$desktopSmoke = Start-Process -FilePath $desktopExe -ArgumentList '--selftest' -Wait -PassThru
+if ($desktopSmoke.ExitCode -ne 0) { throw "GUI self-test failed: $($desktopSmoke.ExitCode)" }
+if ($SkipInstaller) { Write-Host "Published $exe and $desktopExe. Installer skipped."; exit 0 }
 $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
 if (-not $iscc) {
     $candidates = @(
