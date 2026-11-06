@@ -1,7 +1,7 @@
 ﻿; Windows 10 x64, dual install scope (current user or all users).
 ; All users requires UAC elevation. Data stays per logged-in Windows user.
 #define AppName "HF811 Collector"
-#define AppVersion "1.3.0"
+#define AppVersion "1.4.0"
 
 [Setup]
 AppId={{E28955B5-B36E-4F4B-B73D-5128A25D87C9}
