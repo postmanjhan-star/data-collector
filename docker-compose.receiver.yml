@@ -1,0 +1,20 @@
+# On the server host, run behind a trusted HTTPS reverse proxy on the same machine.
+# API key must be injected from local secret management, not stored in Git.
+services:
+  hf811-receiver:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      HF811_SERVER_API_KEY: ${HF811_SERVER_API_KEY:?Set HF811_SERVER_API_KEY before deploying}
+      HF811_RECEIVER_DB: /app/data/receiver.sqlite3
+    volumes:
+      - hf811_receiver_data:/app/data
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  hf811_receiver_data:
