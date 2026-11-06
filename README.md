@@ -1,4 +1,4 @@
-# HF811 Collector — Windows 10 x64 GUI／自動搜尋版（v1.4）
+# HF811 Collector — Windows 10 x64 GUI／Server Sync（v1.5）
 
 **GitHub Actions 會編譯並提供可下載的 Setup.exe Artifact；Repository 本身保存原始碼，不追蹤編譯成品。**
 本製作環境沒有 .NET SDK / Windows / Inno Setup，無法現場編譯或驗證 Windows 10 上的實際執行情況；請在 Windows 開發機或 GitHub Actions 編譯、自動測試，然後在產線一台舊筆電試裝。
@@ -238,3 +238,27 @@ GitHub Actions 現在對 CLI、GUI 分別編譯並執行 self-test，再建立 S
 ### 驗收
 
 GitHub Actions 執行 x64 self-contained CLI + GUI 編譯，GUI self-test（包含網段有效性與 mock TCP CRLF 訊號），再以 Windows Runner 測試目前使用者與所有使用者安裝、捷徑、自我測試、解除安裝。仍須在真正的 Windows 10 舊筆電與 HF811 設備上實際核對 IP、網段、Port 和連續掃碼。
+
+## v1.5 — Server Sync（2026-11-06）
+
+**完整部署、API、測試與風險說明：[docs/SERVER_SYNC.md](docs/SERVER_SYNC.md)**
+
+- HF811 每筆條碼先落地 SQLite，再由背景 `SyncAgent` 以 HTTPS 批次送到 Receiver。
+- Migration 會替既有掃描資料補 `event_id`、同步狀態和重試欄位，不刪除 v1.4 資料。
+- 伺服器 ACK 後才轉 `synced`，失敗留 `pending`；同 UUID 重傳由伺服器去重。
+- GUI 新增「伺服器同步」設定頁：Collector ID、完整 API URL、同步間隔、批次數、加密 API Key、Pending／Synced／Rejected、立即同步、授權驗證。
+- 使用者憑證透過 Windows DPAPI 加密保存在 `%LOCALAPPDATA%\\HF811Collector\\server-key.dpapi`，**不放進 Git 或 config.json**；所有使用者安裝仍各自設定。
+- 接收端 `server/` 為 .NET 10 ASP.NET Core 最小可用伺服器，單節點 SQLite 去重，需自行部署 HTTPS 反向代理與定期備份。
+- 接收端 `docker-compose.receiver.yml` 預設只綁伺服器 loopback `127.0.0.1:8090`，不得直接對外公開未加密 TCP 服務。
+- 此版本**只保存原始掃描事件**，不會自動核銷工單或認定 PCB 過站成功。正式 SMT 驗證須另接入 MES 業務 API。
+
+### 開發電腦快速啟動接收端
+
+```powershell
+$env:HF811_SERVER_API_KEY = "local-demo-only-change-to-a-random-key"
+dotnet run --project .\\server\\HF811Receiver.csproj --urls http://127.0.0.1:8090
+```
+
+Collector GUI →「伺服器同步」→ 啟用、填 `http://127.0.0.1:8090/api/v1/collector/scans/batch`、填相同 API Key → 儲存 → 啟動 Collector（可搭配本機模擬器）。正式伺服器請使用受信任的 HTTPS 網域。
+
+新測試：`tests/receiver-e2e.ps1` 在一次性的 GitHub Windows Runner 上啟動 Receiver，執行 Collector HTTP 實際上傳、ACK、重送去重、憑證拒絕，之後再驗證單一使用者／所有使用者的 Inno Setup。
