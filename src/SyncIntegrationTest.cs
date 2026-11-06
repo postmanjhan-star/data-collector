@@ -32,6 +32,22 @@ public static class SyncIntegrationTest
             store.Save(Encoding.ASCII.GetBytes("NOREAD"), "TEST", "loopback");
             var original = store.PendingBatch(10);
             if (original.Count != 3) throw new InvalidOperationException("Expected three pending scan events");
+
+            // Simulate a receiver/network outage. All events must stay pending with stable IDs.
+            var offlineConfig = new Settings
+            {
+                SyncEnabled = true, CollectorId = config.CollectorId,
+                ServerUrl = "http://127.0.0.1:1/api/v1/collector/scans/batch",
+                SyncBatchSize = 10, SyncIntervalSeconds = 5,
+                DatabasePath = config.DatabasePath
+            };
+            using (var offline = new SyncAgent(offlineConfig, store))
+            {
+                if (await offline.SyncOnceAsync(cancellationToken) != 0 ||
+                    store.GetSyncState().Pending != 3 ||
+                    store.PendingBatch(10).Select(x => x.EventId).SequenceEqual(original.Select(x => x.EventId)) is false)
+                    throw new InvalidOperationException("Offline upload modified pending event identities");
+            }
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             client.DefaultRequestHeaders.Add("X-Collector-Key", key);
             var statsUri = new Uri(new Uri(url).GetLeftPart(UriPartial.Authority) + "/api/v1/collector/stats");
