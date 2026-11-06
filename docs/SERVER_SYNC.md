@@ -27,7 +27,7 @@ Honeywell HF811 TCP -> Windows Collector -> SQLite scans (durable)
 - 升級 v1.4 SQLite 時採**增量 migration**：替既有資料補上永久 `event_id`，保留原有掃描時間與所有欄位，不清空舊資料。
 - **重要：首次啟用 Sync 會把舊 SQLite 中所有 Pending 紀錄一起補傳，包括 v1.4 模擬器產生的條碼。** 正式環境上線前請先確認使用的是正確資料庫；如須隔離歷史測試資料，應先備份原資料並改用新 SQLite 路徑，不要刪除尚需追溯的原始紀錄。
 - 每筆事件包含固定 UUID、設備標籤、條碼、UTC 時間、原始 HEX、來源、重複標記、NOREAD。
-- 上傳最多 100 筆／批（預設 50），每 5 秒嘗試；錯誤時延後重試最多 300 秒。
+- 上傳最多 100 筆／批（預設 50），正常每 5 秒嘗試；若網路恢復後仍有滿批積壓，則以最短約 150ms 間隔逐批補傳；失敗時指數延後重試最多 300 秒。
 - 只有伺服器提交 DB 後回 `acknowledged_event_ids`，Collector 才把對應事件設為 `synced`。
 - 伺服器對 `event_id` 設唯一鍵；同 ID、同內容重傳重新回 ACK，但不重複寫入；同 ID、不同內容回 rejected。
 - 錯誤或缺少 ACK 時，事件保持 `pending`，下次重傳同個 ID。永久拒收事件設 `rejected`、留下錯誤，需人工處理，不會被靜默刪除。
