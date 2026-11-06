@@ -583,6 +583,7 @@ public static class Program
                   HF811Collector.exe collector --config "C:\path\config.json"
                   HF811Collector.exe init-config
                   HF811Collector.exe edit-config
+                  HF811Collector.exe open-data
                   HF811Collector.exe simulator [--mode server|client] [--host 127.0.0.1]
                     [--port 55256] [--interval-ms 200] [--count 0]
                     [--repeat-every 5] [--no-read-every 0] [--disconnect-every 0]
@@ -606,6 +607,15 @@ public static class Program
                 var editor = new ProcessStartInfo("notepad.exe") { UseShellExecute = false };
                 editor.ArgumentList.Add(path);
                 Process.Start(editor);
+                return 0;
+            }
+            if (args[0] == "open-data")
+            {
+                ConfigBootstrap.EnsureDefault();
+                string folder = Path.GetDirectoryName(ConfigBootstrap.DefaultPath)!;
+                var explorer = new ProcessStartInfo("explorer.exe") { UseShellExecute = false };
+                explorer.ArgumentList.Add(folder);
+                Process.Start(explorer);
                 return 0;
             }
             if (args[0] == "simulator")
