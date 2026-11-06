@@ -1,4 +1,4 @@
-# HF811 Collector — Windows 10 x64 GUI／系統匣版（v1.3）
+# HF811 Collector — Windows 10 x64 GUI／自動搜尋版（v1.4）
 
 **GitHub Actions 會編譯並提供可下載的 Setup.exe Artifact；Repository 本身保存原始碼，不追蹤編譯成品。**
 本製作環境沒有 .NET SDK / Windows / Inno Setup，無法現場編譯或驗證 Windows 10 上的實際執行情況；請在 Windows 開發機或 GitHub Actions 編譯、自動測試，然後在產線一台舊筆電試裝。
@@ -209,3 +209,32 @@ src/Program.cs                           原始 CLI／核心（保留）
 ```
 
 GitHub Actions 現在對 CLI、GUI 分別編譯並執行 self-test，再建立 Setup.exe，使用 Windows Runner 測試「目前使用者」和「所有使用者」的安裝與卸載。CI 的 Windows Runner 並非 Windows 10，也無法取代現場 HF811 實體掃描器的測試。
+
+## v1.4.0 — UI 重構與區網搜尋（2026-11-06）
+
+### GUI 重構
+
+- 概覽 / 設備設定 / 運作日誌三個頁面，避免控制列與標題重疊。
+- 固定高度的標題與操作列，概覽頁獨立顯示連線資訊、四個統計數字、最後條碼、事件摘要。
+- 設定頁採左右雙欄、可捲動；滑鼠滾輪不再意外改變數值欄位。
+- 保留「關閉 X → 最小化至系統匣」、「真正結束 → 停止 Collector」、登入後背景啟動等既有行為。
+
+### 搜尋 HF811 IP（目前是有界 TCP 探測，不是原廠識別）
+
+1. 先停止 Collector 和本機模擬器，以免占用同一個 TCP 連線。
+2. 點 **「搜尋掃描器」**，選擇 Windows 網卡（例如乙太網路）與搜尋網段前三段，例如 `192.168.16`。
+3. 程式只在你按下「開始搜尋」之後探測**此 /24 網段**的主機 `.1` 至 `.254`。預設 TCP Port 是 `55256`，每次最多 12 個並行連線、短逾時，允許取消。
+4. 結果標示 **TCP Port 開啟 / 設備型號未驗證**。請和 DataMax Plus 中的設備 IP 及序號核對，選中候選後按「套用 IP / Port」；最後在「設備設定」手動儲存。
+5. 如果需要判斷 LF / CR / CRLF 尾碼，可選中候選後按「取樣判斷尾碼」，在 8 秒內讓掃描器讀取一張測試條碼。顯示收到的資料 HEX 和「推測」結果，需另外勾選才會套用尾碼；未收到資料或無明確控制字元時不推測。
+
+**掃描範圍限制**：只接受 RFC1918 私有網段和 `169.254.x.x` 直連網段，單次最多 254 個 IP。請只在取得網管／設備管理者許可的現場網段使用；不會自動掃描整個公司網路，也不會發出 HF811 設定變更或 Trigger 指令。
+
+**不可自動讀出的部分**：一般 TCP 條碼輸出只可確定候選 IP、Port 可連通，以及觀察到的條碼位元組。**TCP 連得上不等於一定是 HF811**，也無法直接從此連線得知真實設備序號、韌體、DHCP、觸發模式、影像曝光、所有格式設定。設備代號 `DeviceId` 是 Collector 的本機追蹤標籤，不是掃描器的真實序號；去重窗、重連時間、SQLite 路徑和 API Port 也是 Collector 自己的設定，不是掃描器參數。
+
+**未來可再整合原廠 SDK**：HF81x User Guide Chapter 13 描述 DataMax SDK `SDK_searchDevices`、發現設備序號和 IP 的 callback，以及查詢部分掃描器參數的函式。要完成真正的設備識別和全套設定讀取，需取得原廠 Windows SDK（DLL、header、版本與授權），再設計明確的唯讀介面；此版**尚未整合 DataMax SDK**，不假裝能自動抓取所有硬體設定。
+
+官方文件：https://prod-edam.honeywell.com/content/dam/honeywell-edam/sps/ppr/en-us/public/products/barcode-scanners/fixed-mount/hf81x/documents/sps-ppr-hf81x-en-ug.pdf
+
+### 驗收
+
+GitHub Actions 執行 x64 self-contained CLI + GUI 編譯，GUI self-test（包含網段有效性與 mock TCP CRLF 訊號），再以 Windows Runner 測試目前使用者與所有使用者安裝、捷徑、自我測試、解除安裝。仍須在真正的 Windows 10 舊筆電與 HF811 設備上實際核對 IP、網段、Port 和連續掃碼。
