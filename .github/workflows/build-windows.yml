@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['src/**', 'installer/**', 'build.ps1', 'tests/**', '.github/workflows/build-windows.yml']
+    paths: ['src/**', 'desktop/**', 'installer/**', 'build.ps1', 'tests/**', '.github/workflows/build-windows.yml']
 
 jobs:
   build:
