@@ -37,9 +37,10 @@ public static class SyncSecrets
 
     public static void Save(string apiKey)
     {
-        if (apiKey.Length < 16 || apiKey.Length > 512)
-            throw new ArgumentException("API key must be at least 16 characters and at most 512");
-        var raw = Encoding.UTF8.GetBytes(apiKey.Trim());
+        string normalized = apiKey.Trim();
+        if (normalized.Length < 16 || normalized.Length > 512)
+            throw new ArgumentException("API key must be 16..512 non-whitespace characters");
+        var raw = Encoding.UTF8.GetBytes(normalized);
         string temp = SecretFile + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
