@@ -549,16 +549,21 @@ public static class ConfigBootstrap
         if (!File.Exists(template))
             throw new FileNotFoundException("Bundled default configuration not found", template);
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-        // Atomic exclusive create avoids overwriting customized settings on concurrent starts.
-        using var input = File.OpenRead(template);
+        // Write to a temporary file, then rename without overwriting an existing config.
+        // This prevents interrupted first-run initialization leaving a truncated JSON file.
+        string tempPath = configPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            using var output = new FileStream(configPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            input.CopyTo(output);
+            File.Copy(template, tempPath);
+            try { File.Move(tempPath, configPath); }
+            catch (IOException) when (File.Exists(configPath))
+            {
+                // A concurrent Collector startup already created the config.
+            }
         }
-        catch (IOException) when (File.Exists(configPath))
+        finally
         {
-            // Another startup already created it.
+            if (File.Exists(tempPath)) File.Delete(tempPath);
         }
         return configPath;
     }
