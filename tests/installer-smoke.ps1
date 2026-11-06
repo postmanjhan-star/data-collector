@@ -38,8 +38,7 @@ try {
         (Join-Path $groupDir '01 啟動 Collector.lnk'),
         (Join-Path $groupDir '02 啟動本機模擬掃描器.lnk'),
         (Join-Path $groupDir '03 編輯 HF811 設定.lnk'),
-        (Join-Path $groupDir '04 掃描資料與日誌資料夾.lnk'),
-        (Join-Path $groupDir '05 Collector 狀態 API.lnk')
+        (Join-Path $groupDir '04 掃描資料與日誌資料夾.lnk')
     )
     foreach ($path in $required) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -47,6 +46,18 @@ try {
         }
         Write-Host "Verified $path"
     }
+    # Inno Setup creates an Internet shortcut (.url) when Filename is an HTTP URL.
+    # Keep .lnk as a fallback for future Inno Setup configurations.
+    $apiShortcuts = @(
+        (Join-Path $groupDir '05 Collector 狀態 API.url'),
+        (Join-Path $groupDir '05 Collector 狀態 API.lnk')
+    )
+    $apiShortcut = $apiShortcuts | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if (-not $apiShortcut) {
+        throw "API shortcut missing: $($apiShortcuts -join ', ')"
+    }
+    Write-Host "Verified $apiShortcut"
+
     if (-not (Test-Path -LiteralPath $uninstall -PathType Leaf)) {
         throw "Uninstaller not found: $uninstall"
     }
