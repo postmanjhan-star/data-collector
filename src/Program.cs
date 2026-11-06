@@ -9,8 +9,9 @@ using Microsoft.Data.Sqlite;
 namespace HF811Collector;
 
 /// <summary>Daily plain-text diagnostics. SQLite remains the authoritative scan history.</summary>
-internal static class AppLog
+public static class AppLog
 {
+    public static event Action<string>? MessageWritten;
     private static readonly object Gate = new();
     private static string? _logDirectory;
     private static string? _currentDate;
@@ -41,7 +42,11 @@ internal static class AppLog
         lock (Gate)
         {
             Console.WriteLine(message);
-            if (_logDirectory is null) return;
+            if (_logDirectory is null)
+            {
+                MessageWritten?.Invoke(message);
+                return;
+            }
             try
             {
                 string date = DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
@@ -58,6 +63,8 @@ internal static class AppLog
             }
             catch (IOException e) { Console.Error.WriteLine($"[Log] {e.Message}"); }
             catch (UnauthorizedAccessException e) { Console.Error.WriteLine($"[Log] {e.Message}"); }
+            // Subscribers must marshal to their own UI SynchronizationContext.
+            MessageWritten?.Invoke(message);
         }
     }
 }
