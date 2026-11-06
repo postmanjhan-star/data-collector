@@ -120,7 +120,7 @@ public sealed partial class ScanStore
                        COALESCE(SUM(CASE WHEN sync_status='pending' THEN 1 ELSE 0 END),0),
                        COALESCE(SUM(CASE WHEN sync_status='synced' THEN 1 ELSE 0 END),0),
                        COALESCE(SUM(CASE WHEN sync_status='rejected' THEN 1 ELSE 0 END),0),
-                       MAX(uploaded_at_utc)
+                       MAX(CASE WHEN sync_status='synced' THEN uploaded_at_utc ELSE NULL END)
                 FROM scans
                 """;
             using var reader = cmd.ExecuteReader();
@@ -191,6 +191,7 @@ public sealed partial class ScanStore
             foreach (var item in rejected)
             {
                 status.Value = "rejected";
+                time.Value = DBNull.Value;
                 error.Value = item.Reason.Length > 300 ? item.Reason[..300] : item.Reason;
                 ev.Value = item.EventId;
                 cmd.ExecuteNonQuery();
