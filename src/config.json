@@ -1,0 +1,13 @@
+{
+  "Mode": "connect",
+  "Host": "127.0.0.1",
+  "Port": 55256,
+  "DeviceId": "SMT-LINE-01-HF811",
+  "Framing": "lf",
+  "IdleGapMs": 100,
+  "ReconnectMs": 1000,
+  "DedupWindowMs": 2000,
+  "NoReadValue": "NOREAD",
+  "ApiPort": 8088,
+  "DatabasePath": ""
+}

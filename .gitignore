@@ -1,0 +1,11 @@
+/dist/
+/src/bin/
+/src/obj/
+
+# Duplicate project files from the local export
+/.github/.github/
+/.github/installer/
+/.github/src/
+/.github/README.md
+/.github/build.ps1
+/.github/preflight.ps1
