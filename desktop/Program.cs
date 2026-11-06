@@ -13,7 +13,10 @@ internal static class Program
             ApplicationConfiguration.Initialize();
             if (smokeTest)
             {
-                var settings = ConfigFile.Load();
+                string template = Path.Combine(AppContext.BaseDirectory, "config.default.json");
+                if (!File.Exists(template)) throw new FileNotFoundException("Missing installer config template", template);
+                var settings = System.Text.Json.JsonSerializer.Deserialize<CollectorOptions>(File.ReadAllText(template))
+                    ?? throw new InvalidDataException("Invalid configuration template");
                 settings.Validate();
                 using var icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
                 if (icon is null) throw new InvalidOperationException("Desktop icon not embedded");
