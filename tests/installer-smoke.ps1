@@ -1,81 +1,105 @@
 [CmdletBinding()]
 param(
+    [ValidateSet('CurrentUser', 'AllUsers')]
+    [string]$InstallMode = 'CurrentUser',
     [string]$InstallerPath = (Join-Path $PSScriptRoot '..\dist\installer\HF811Collector-win-x64-Setup.exe')
 )
 $ErrorActionPreference = 'Stop'
 
-# This script installs and uninstalls the application. Run it ONLY on an ephemeral CI runner.
+# The test installs and uninstalls real programs. Never execute it on production laptops.
 if ($env:GITHUB_ACTIONS -ne 'true') {
-    throw 'Installer smoke test is restricted to disposable GitHub Actions runners.'
+    throw 'Installer smoke tests are restricted to disposable GitHub Actions runners.'
 }
 
 $installer = (Resolve-Path -LiteralPath $InstallerPath -ErrorAction Stop).Path
-$appDir = Join-Path $env:LOCALAPPDATA 'Programs\HF811Collector'
 $dataDir = Join-Path $env:LOCALAPPDATA 'HF811Collector'
-$groupDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\HF811 Collector'
-$logFile = Join-Path $env:RUNNER_TEMP 'HF811Collector-install-smoke.log'
-$uninstall = Join-Path $appDir 'unins000.exe'
-
-if ((Test-Path -LiteralPath $appDir) -or (Test-Path -LiteralPath $dataDir)) {
-    throw 'Refusing to overwrite an existing HF811 Collector installation or data directory.'
+$configPath = Join-Path $dataDir 'config.json'
+$commonStartMenu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\HF811 Collector'
+$userStartMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\HF811 Collector'
+if ($InstallMode -eq 'AllUsers') {
+    $appDir = Join-Path $env:ProgramFiles 'HF811Collector'
+    $groupDir = $commonStartMenu
+    $scope = '/ALLUSERS'
 }
+else {
+    $appDir = Join-Path $env:LOCALAPPDATA 'Programs\HF811Collector'
+    $groupDir = $userStartMenu
+    $scope = '/CURRENTUSER'
+}
+$logFile = Join-Path $env:RUNNER_TEMP "HF811Collector-install-smoke-$InstallMode.log"
+$exe = Join-Path $appDir 'HF811Collector.exe'
+$uninstaller = Join-Path $appDir 'unins000.exe'
+
+if (Test-Path -LiteralPath $appDir) {
+    throw "Refusing to overwrite an existing installation: $appDir"
+}
+# The prior test mode intentionally leaves its user configuration behind.
+$oldHash = if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+    (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash
+} else { $null }
 
 try {
-    Write-Host "Installing $installer" -ForegroundColor Cyan
-    # Setup.exe is a GUI-subsystem executable: direct invocation can return before it exits
-    # and leave $LASTEXITCODE unset. Start-Process -Wait obtains the real exit code.
+    Write-Host "Installing $InstallMode scope: $installer" -ForegroundColor Cyan
     $setup = Start-Process -FilePath $installer -ArgumentList @(
-        '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
+        $scope, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
         '/TASKS=!startup', "/LOG=$logFile"
     ) -Wait -PassThru
     if ($setup.ExitCode -ne 0) {
-        throw "Installer exit code $($setup.ExitCode). Review $logFile"
+        throw "Installer exited $($setup.ExitCode). Review $logFile"
     }
 
     $required = @(
-        (Join-Path $appDir 'HF811Collector.exe'),
-        (Join-Path $dataDir 'config.json'),
+        $exe,
+        (Join-Path $appDir 'config.default.json'),
         (Join-Path $groupDir '01 啟動 Collector.lnk'),
         (Join-Path $groupDir '02 啟動本機模擬掃描器.lnk'),
         (Join-Path $groupDir '03 編輯 HF811 設定.lnk'),
         (Join-Path $groupDir '04 掃描資料與日誌資料夾.lnk')
     )
-    foreach ($path in $required) {
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            throw "Required installed file or shortcut missing: $path"
+    foreach ($file in $required) {
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+            throw "Required installed file or shortcut missing: $file"
         }
-        Write-Host "Verified $path"
+        Write-Host "Verified $file"
     }
-    # Inno Setup creates an Internet shortcut (.url) when Filename is an HTTP URL.
-    # Keep .lnk as a fallback for future Inno Setup configurations.
-    $apiShortcuts = @(
+    # HTTP destinations are written as Internet shortcut .url files by Inno Setup.
+    $apiShortcut = @(
         (Join-Path $groupDir '05 Collector 狀態 API.url'),
         (Join-Path $groupDir '05 Collector 狀態 API.lnk')
-    )
-    $apiShortcut = $apiShortcuts | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-    if (-not $apiShortcut) {
-        throw "API shortcut missing: $($apiShortcuts -join ', ')"
-    }
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+    if (-not $apiShortcut) { throw "API shortcut missing under $groupDir" }
     Write-Host "Verified $apiShortcut"
 
-    if (-not (Test-Path -LiteralPath $uninstall -PathType Leaf)) {
-        throw "Uninstaller not found: $uninstall"
+    if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) {
+        throw "Uninstaller missing: $uninstaller"
     }
+    Write-Host "Testing first-run per-user configuration ($InstallMode)..." -ForegroundColor Cyan
+    & $exe init-config
+    if ($LASTEXITCODE -ne 0) { throw "init-config exited $LASTEXITCODE" }
+    if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
+        throw "Per-user config not initialized: $configPath"
+    }
+    if ($oldHash -and (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -ne $oldHash) {
+        throw 'An existing user configuration was overwritten.'
+    }
+    Write-Host "Verified per-user config: $configPath"
 
-    Write-Host 'Testing installed executable...' -ForegroundColor Cyan
-    & (Join-Path $appDir 'HF811Collector.exe') selftest
-    if ($LASTEXITCODE -ne 0) { throw "Installed executable self-test exit code $LASTEXITCODE" }
-
-    Write-Host 'INSTALLER SMOKE TEST PASS: setup, shortcuts, config, self-test.' -ForegroundColor Green
+    & $exe selftest
+    if ($LASTEXITCODE -ne 0) { throw "Installed executable self-test exited $LASTEXITCODE" }
+    Write-Host "INSTALLER SMOKE TEST PASS: $InstallMode installation, shortcuts, config and self-test." -ForegroundColor Green
 }
 finally {
-    if (Test-Path -LiteralPath $uninstall -PathType Leaf) {
-        Write-Host 'Uninstalling smoke-test installation...' -ForegroundColor Cyan
-        $uninstallProcess = Start-Process -FilePath $uninstall -ArgumentList @(
+    if (Test-Path -LiteralPath $uninstaller -PathType Leaf) {
+        Write-Host "Uninstalling $InstallMode smoke-test installation..." -ForegroundColor Cyan
+        $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @(
             '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
         ) -Wait -PassThru
-        if ($uninstallProcess.ExitCode -ne 0) {
-            Write-Warning "Uninstaller exit code $($uninstallProcess.ExitCode)"
+        if ($uninstall.ExitCode -ne 0) {
+            Write-Warning "Uninstaller exit code $($uninstall.ExitCode)"
+        }
+        if (Test-Path -LiteralPath $exe -PathType Leaf) {
+            throw "Uninstall did not remove $exe"
         }
     }
 }
