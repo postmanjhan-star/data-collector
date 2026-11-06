@@ -15,4 +15,7 @@
     <DebugType>none</DebugType>
     <ApplicationIcon>assets\hf811.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\src\HF811Collector.csproj" />
+  </ItemGroup>
 </Project>
