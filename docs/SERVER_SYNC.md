@@ -78,7 +78,7 @@ docker compose -f docker-compose.receiver.yml ps
 
 Compose 將接收端綁在伺服器本機 `127.0.0.1:8090`，**不直接讓產線筆電透過內網 HTTP 連上它**。請由既有 Caddy/Nginx/公司反向代理，在核准的內網 DNS/FQDN 對此服務提供受信任的 HTTPS，並限制存取來源。
 
-例如 Caddy 的目的服務是 `reverse_proxy 127.0.0.1:8090`，實際網域與內網憑證依公司部署決定。正式客戶端填 `https://<內網網域>/api/v1/collector/scans/batch`。不得關閉 TLS 憑證驗證，也不應公開暴露到 Internet。
+例如 **Caddy 跑在同一台主機** 時，可用 `reverse_proxy 127.0.0.1:8090`；如果 Caddy 本身是另一個 Docker 容器，該容器內的 `127.0.0.1` 不會指向 Receiver，應將兩個容器放入受控的共用 Docker 網路，讓 Caddy 透過 `hf811-receiver:8090` 代理。若反向代理在不同 VM，需依公司防火牆政策另外設計受限的網路連線。正式客戶端填 `https://<內網網域>/api/v1/collector/scans/batch`。不得關閉 TLS 憑證驗證，也不應公開暴露到 Internet。
 
 接收端 SQLite 預設存在 Docker Volume `hf811_receiver_data`，需做定期備份與磁碟空間告警。正式大量產線與高可用建議改為 MES 管理的 MySQL/PostgreSQL 持久層；此版本接收端是**可運作的單節點參考實作**，不是完整 MES。
 
