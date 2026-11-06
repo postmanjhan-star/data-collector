@@ -22,9 +22,14 @@ if ((Test-Path -LiteralPath $appDir) -or (Test-Path -LiteralPath $dataDir)) {
 
 try {
     Write-Host "Installing $installer" -ForegroundColor Cyan
-    & $installer '/VERYSILENT' '/SUPPRESSMSGBOXES' '/NORESTART' '/TASKS=!startup' "/LOG=$logFile"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Installer exit code $LASTEXITCODE. Review $logFile"
+    # Setup.exe is a GUI-subsystem executable: direct invocation can return before it exits
+    # and leave $LASTEXITCODE unset. Start-Process -Wait obtains the real exit code.
+    $setup = Start-Process -FilePath $installer -ArgumentList @(
+        '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
+        '/TASKS=!startup', "/LOG=$logFile"
+    ) -Wait -PassThru
+    if ($setup.ExitCode -ne 0) {
+        throw "Installer exit code $($setup.ExitCode). Review $logFile"
     }
 
     $required = @(
@@ -55,9 +60,11 @@ try {
 finally {
     if (Test-Path -LiteralPath $uninstall -PathType Leaf) {
         Write-Host 'Uninstalling smoke-test installation...' -ForegroundColor Cyan
-        & $uninstall '/VERYSILENT' '/SUPPRESSMSGBOXES' '/NORESTART'
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Uninstaller exit code $LASTEXITCODE"
+        $uninstallProcess = Start-Process -FilePath $uninstall -ArgumentList @(
+            '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+        ) -Wait -PassThru
+        if ($uninstallProcess.ExitCode -ne 0) {
+            Write-Warning "Uninstaller exit code $($uninstallProcess.ExitCode)"
         }
     }
 }
