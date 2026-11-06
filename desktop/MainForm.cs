@@ -5,7 +5,7 @@ using HF811Collector;
 
 namespace HF811Collector.Desktop;
 
-internal sealed class MainForm : Form
+internal sealed partial class MainForm : Form
 {
     private static readonly Color BackgroundColor = Color.FromArgb(244, 247, 251);
     private static readonly Color Ink = Color.FromArgb(31, 48, 72);
@@ -148,123 +148,7 @@ internal sealed class MainForm : Form
         base.OnFormClosed(e);
     }
 
-    private void BuildLayout()
-    {
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 4,
-            Padding = new Padding(20, 14, 20, 16)
-        };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 78));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        Controls.Add(root);
-
-        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136));
-        var mark = new PictureBox { Image = (Icon ?? SystemIcons.Application).ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Dock = DockStyle.Fill, Margin = new Padding(2, 10, 8, 10) };
-        heading.Controls.Add(mark, 0, 0);
-        var names = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 6, 0, 0) };
-        names.Controls.Add(TextLabel("HF811 Collector", 18, true, Ink));
-        names.Controls.Add(TextLabel("產線條碼收集 · TCP / SQLite / 本機測試", 9, false, Muted));
-        heading.Controls.Add(names, 1, 0);
-        _status.TextAlign = ContentAlignment.MiddleRight;
-        _status.Dock = DockStyle.Fill;
-        heading.Controls.Add(_status, 2, 0);
-        root.Controls.Add(heading, 0, 0);
-
-        var toolbar = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = true, AutoScroll = true, Padding = new Padding(0, 7, 0, 3)
-        };
-        _start.Click += (_, _) => StartCollector();
-        _stop.Click += async (_, _) => await StopCollectorAsync();
-        _simulate.Click += async (_, _) => await ToggleSimulatorAsync();
-        toolbar.Controls.AddRange(new Control[]
-        {
-            _start, _stop, _simulate,
-            ActionButton("儲存設定", Accent, (_, _) => SaveSettings()),
-            ActionButton("資料夾", Color.FromArgb(91, 111, 139), (_, _) => OpenDataFolder()),
-            ActionButton("狀態 API", Color.FromArgb(91, 111, 139), (_, _) => OpenStats())
-        });
-        root.Controls.Add(toolbar, 0, 1);
-
-        var columns = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48));
-        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
-        root.Controls.Add(columns, 0, 2);
-
-        var settingsCard = Card();
-        settingsCard.Margin = new Padding(0, 0, 9, 0);
-        var settingsWrap = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
-        settingsWrap.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        settingsWrap.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        settingsWrap.Controls.Add(TextLabel("設備與接收參數", 13, true, Ink), 0, 0);
-        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
-        var grid = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top, AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 2, Padding = new Padding(0, 0, 12, 0)
-        };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
-        AddField(grid, "連線模式", _mode);
-        AddField(grid, "Scanner IP / Host", _host);
-        AddField(grid, "TCP Port", _port);
-        AddField(grid, "設備代號", _device);
-        AddField(grid, "資料分隔符", _framing);
-        AddField(grid, "重連間隔 (ms)", _reconnect);
-        AddField(grid, "去重時間 (ms)", _dedup);
-        AddField(grid, "Idle Gap (ms)", _idleGap);
-        AddField(grid, "NOREAD 值", _noRead);
-        AddField(grid, "本機 API Port", _apiPort);
-        AddField(grid, "SQLite 路徑 (可空)", _dbPath);
-        scroll.Controls.Add(grid);
-        settingsWrap.Controls.Add(scroll, 0, 1);
-        settingsCard.Controls.Add(settingsWrap);
-        columns.Controls.Add(settingsCard, 0, 0);
-
-        var detailsCard = Card();
-        detailsCard.Margin = new Padding(9, 0, 0, 0);
-        var details = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5 };
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
-        details.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        details.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        details.Controls.Add(TextLabel("即時掃描狀態", 13, true, Ink), 0, 0);
-
-        var counters = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
-        for (int i = 0; i < 4; i++) counters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        counters.Controls.Add(Counter("總筆數", _total), 0, 0);
-        counters.Controls.Add(Counter("有效", _accepted), 1, 0);
-        counters.Controls.Add(Counter("重複", _duplicates), 2, 0);
-        counters.Controls.Add(Counter("NOREAD", _noReads), 3, 0);
-        details.Controls.Add(counters, 0, 1);
-
-        var last = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
-        last.Controls.Add(TextLabel("最近條碼", 9, false, Muted), 0, 0);
-        _lastCode.AutoEllipsis = true;
-        _lastCode.Dock = DockStyle.Fill;
-        last.Controls.Add(_lastCode, 0, 1);
-        details.Controls.Add(last, 0, 2);
-        details.Controls.Add(TextLabel("即時運作日誌（最多保留畫面上 160 行）", 9, false, Muted), 0, 3);
-        details.Controls.Add(_logs, 0, 4);
-        detailsCard.Controls.Add(details);
-        columns.Controls.Add(detailsCard, 1, 0);
-
-        var footer = TextLabel("關閉視窗會縮到系統匣，只有從系統匣選「結束程式」才會停止收碼。", 9, false, Muted);
-        footer.Dock = DockStyle.Fill;
-        footer.TextAlign = ContentAlignment.MiddleLeft;
-        root.Controls.Add(footer, 0, 3);
-    }
+    private void BuildLayout() => BuildModernLayout();
 
     private static Panel Card() => new()
     {
@@ -367,6 +251,7 @@ internal sealed class MainForm : Form
         _dedup.Value = Math.Clamp(cfg.DedupWindowMs, 0, 600000);
         _reconnect.Value = Math.Clamp(cfg.ReconnectMs, 1, 600000);
         _idleGap.Value = Math.Clamp(cfg.IdleGapMs, 1, 600000);
+        UpdateConnectionLine();
     }
 
     private CollectorOptions ReadForm() => new()
@@ -612,6 +497,12 @@ internal sealed class MainForm : Form
         _logs.Lines = lines.ToArray();
         _logs.SelectionStart = _logs.TextLength;
         _logs.ScrollToCaret();
+        var preview = _overviewLog.Lines.ToList();
+        preview.Add("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message);
+        if (preview.Count > 30) preview.RemoveRange(0, preview.Count - 30);
+        _overviewLog.Lines = preview.ToArray();
+        _overviewLog.SelectionStart = _overviewLog.TextLength;
+        _overviewLog.ScrollToCaret();
     }
 
     private void UpdateButtons()
