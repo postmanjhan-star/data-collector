@@ -177,7 +177,7 @@ internal sealed partial class MainForm : Form
         return combo;
     }
 
-    private static NumericUpDown Number(int maximum, int minimum = 0) => new()
+    private static NumericUpDown Number(int maximum, int minimum = 0) => new WheelSafeNumericUpDown()
     {
         Minimum = minimum, Maximum = maximum, ThousandsSeparator = false,
         Font = new Font("Segoe UI", 10F), TextAlign = HorizontalAlignment.Right
