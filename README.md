@@ -1,4 +1,4 @@
-# HF811 C# Collector — Windows 10 x64 安裝專案（v1.2）
+# HF811 Collector — Windows 10 x64 GUI／系統匣版（v1.3）
 
 **GitHub Actions 會編譯並提供可下載的 Setup.exe Artifact；Repository 本身保存原始碼，不追蹤編譯成品。**
 本製作環境沒有 .NET SDK / Windows / Inno Setup，無法現場編譯或驗證 Windows 10 上的實際執行情況；請在 Windows 開發機或 GitHub Actions 編譯、自動測試，然後在產線一台舊筆電試裝。
@@ -8,11 +8,11 @@
 | 項目 | 設定 |
 |---|---|
 | 產線電腦 | Windows 10 **64 位元 x64** |
-| 核心程式 | C# / .NET 10、單檔自包含執行檔 (`win-x64`) |
+| 核心程式 | C# / .NET 10、單檔自包含 CLI + WinForms GUI (`win-x64`) |
 | 安裝包 | `HF811Collector-win-x64-Setup.exe` (Inno Setup 6.3+) |
 | 目標電腦的額外依賴 | **無 Python、無 .NET Runtime、無 Visual Studio／SDK** |
 | 安裝權限 | 安裝精靈可選 **僅目前使用者（免管理員）** 或 **所有使用者（需要 UAC 管理員授權）** |
-| 開機啟動 | 可選擇登入後自動啟動；所有使用者模式會為每個登入使用者建立自動啟動捷徑，並非 Windows Service |
+| 開機啟動 | 可選擇登入後啟動 WinForms 並縮至系統匣；沒有登入仍不會收碼，不是 Windows Service |
 | Scanner | HF811 TCP Server 時 Collector 主動連線；預設 port 55256 |
 | SQLite | `%LOCALAPPDATA%\HF811Collector\data\scans.sqlite3` |
 | 日誌 | `%LOCALAPPDATA%\HF811Collector\logs\collector-YYYYMMDD.log`，保留最近約 14 天 |
@@ -60,7 +60,7 @@ dist\installer\SHA256SUMS.txt
    ```
 
 3. 在產線筆電執行 `HF811Collector-win-x64-Setup.exe`，選擇「僅為我安裝」或「所有使用者安裝」。前者在 `%LOCALAPPDATA%\Programs\HF811Collector`，後者在 `C:\Program Files\HF811Collector`，會由 Windows UAC 要求管理員權限；若被 AppLocker、WDAC 或公司政策封鎖，須找 IT 授權。
-4. 安裝精靈可勾選「**Windows 登入後自動啟動 Collector**」。建議專用產線帳號使用；使用不同 Windows 帳號時，設定與 SQLite **不是同一份**。安裝完成時先不要啟動，先改設定。
+4. 安裝精靈可勾選「**Windows 登入後自動啟動 Collector**」。建議專用產線帳號使用；使用不同 Windows 帳號時，設定與 SQLite **不是同一份**。安裝後開啟 WinForms 主視窗，先改設定，再按「啟動 Collector」；無需開啟 Console。
 5. 開始選單 → `HF811 Collector` → `03 編輯 HF811 設定`。這個捷徑會先為目前登入的 Windows 使用者建立 `%LOCALAPPDATA%\HF811Collector\config.json`（若不存在），再開啟記事本。範例如下：
 
    ```json
@@ -177,3 +177,35 @@ README.md                          本說明
 4. 開 `03 編輯 HF811 設定`，把 `Host` 改成實際設備 IP 後重新啟動 Collector 以測實機，確保不與模擬器同時占用連線。
 
 CI 透過 `/CURRENTUSER` 和 `/ALLUSERS` 兩種參數執行靜默安裝測試，並在全新的 GitHub Windows Runner 驗證檔案、捷徑、首次設定、內建 self-test 和解除安裝。正式產線仍須在 Windows 10 x64 與 HF811 實機上驗證；CI Runner 並非 Windows 10。
+
+## v1.3 GUI / 系統匣操作（2026-11-06）
+
+安裝後使用開始選單的 **HF811 Collector**，會打開 WinForms 主視窗，不再需要先打開黑色主控台。主視窗包含：
+
+- **設定**：IP/Host、Port、Mode、Device ID、LF/CRLF/CR/idle、去重時間、重連時間、NOREAD、API Port、SQLite 路徑。
+- **操作**：「儲存設定」「啟動 Collector」「停止 Collector」「開始/停止模擬掃描」「資料夾」「狀態 API」。
+- **監控**：連線狀態、掃碼總數／有效／重複／NOREAD、最近條碼、運作日誌。
+- **系統匣**：按 X 僅隱藏視窗，背景持續收碼；左鍵圖示還原，右鍵有啟停／資料夾／API／結束程式。只有選「結束程式」才停止所有背景工作。
+- **自動啟動**：安裝時可選「登入 Windows 後啟動並縮到系統匣」（預設不勾）；啟動參數為 `--background`。無登入時不會執行，非 Windows Service。
+- **外觀**：WinForms 輕量 GUI 與自訂 HF811 Scanner 圖示，適用 Windows 10 x64。
+
+**第一次模擬測試**：在 GUI 確認 Host = `127.0.0.1`、Mode = `connect`、Port = `55256`、Framing = `lf`；按「開始模擬掃描」，再按「啟動 Collector」。總筆數應開始上升。按「停止模擬」確認 Collector 顯示重連，再恢復模擬確認自動回復。
+
+**真正接 HF811**：停止模擬與 Collector，修改 Host 為實際設備 IP 並儲存，再按「啟動 Collector」。HF811 預設無分隔符，正式收碼前必須配置 LF/CRLF 或依實機設定修改 Framing；使用 idle framing 僅適合啟發式測試，不能保證正確分包。
+
+**設定生效時機**：儲存設定不會直接改變已連線的 Collector；修改 IP、Port 等參數後請先停止並重新啟動。SQLite 與日誌仍保存在目前登入使用者的 `%LOCALAPPDATA%\\HF811Collector`，不隨「所有使用者安裝」自動共享。
+
+**重要限制**：WinForms Tray 仍需登入 Windows 才能長期運作；正式無人值守應改成 Windows Service。多位不同 Windows 使用者同時執行 GUI 並不代表能共享同一台 HF811；建議固定單一產線帳號使用。此版未具備 SMT 過站 API 的確認重送佇列。
+
+### GUI 原始碼
+
+```text
+desktop/HF811Collector.Desktop.csproj   .NET 10 WinForms GUI，self-contained WinExe
+desktop/Program.cs                       Tray GUI 啟動、單實例控制、自我檢查
+desktop/MainForm.cs                      設定、即時統計、系統匣、背景收碼與模擬
+desktop/ConfigFile.cs                    設定檔驗證與安全寫入
+desktop/assets/hf811.ico                 自訂 Windows App / Tray 圖示
+src/Program.cs                           原始 CLI／核心（保留）
+```
+
+GitHub Actions 現在對 CLI、GUI 分別編譯並執行 self-test，再建立 Setup.exe，使用 Windows Runner 測試「目前使用者」和「所有使用者」的安裝與卸載。CI 的 Windows Runner 並非 Windows 10，也無法取代現場 HF811 實體掃描器的測試。
