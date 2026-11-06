@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['src/**', 'desktop/**', 'installer/**', 'build.ps1', 'tests/**', '.github/workflows/build-windows.yml']
+    paths: ['src/**', 'server/**', 'desktop/**', 'installer/**', 'build.ps1', 'tests/**', '.github/workflows/build-windows.yml']
 
 jobs:
   build:
@@ -22,6 +22,18 @@ jobs:
       - name: Build win-x64 (includes self-test)
         shell: pwsh
         run: .\build.ps1
+      - name: Receiver API + Collector server-sync integration test
+        shell: pwsh
+        run: .\\tests\\receiver-e2e.ps1
+      - name: Upload receiver integration logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HF811Receiver-e2e-logs
+          path: |
+            ${{ runner.temp }}/hf811-receiver-out.txt
+            ${{ runner.temp }}/hf811-receiver-err.txt
+          if-no-files-found: ignore
       - name: Smoke-test current-user installation (no elevation)
         shell: pwsh
         run: .\tests\installer-smoke.ps1 -InstallMode CurrentUser
@@ -35,6 +47,12 @@ jobs:
           name: HF811Collector-installer-smoke-log
           path: ${{ runner.temp }}/HF811Collector-install-smoke-*.log
           if-no-files-found: ignore
+      - name: Upload reference API server (framework-dependent)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HF811Receiver-dotnet10
+          path: dist/receiver/
+          if-no-files-found: error
       - name: Upload x64 setup and SHA256 checksum
         uses: actions/upload-artifact@v4
         with:
