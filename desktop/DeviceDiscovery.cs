@@ -63,8 +63,13 @@ internal static class DeviceDiscovery
         if (parts.Length != 3 || !parts.All(x => byte.TryParse(x, out _)))
             throw new ArgumentException("請輸入合法的 IPv4 /24 前三段，例如 192.168.16");
         var b = parts.Select(byte.Parse).ToArray();
-        if (b[0] == 0 || b[0] == 127 || b[0] >= 224)
-            throw new ArgumentException("此網段不適合掃描，請使用已授權的區網 IPv4 網段");
+        bool isLocal =
+            b[0] == 10 ||
+            (b[0] == 172 && b[1] >= 16 && b[1] <= 31) ||
+            (b[0] == 192 && b[1] == 168) ||
+            (b[0] == 169 && b[1] == 254);
+        if (!isLocal)
+            throw new ArgumentException("只允許搜尋內網（10/8、172.16/12、192.168/16）或本機直連 169.254/16 的 /24 網段");
         return string.Join(".", b);
     }
 
