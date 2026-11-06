@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['src/**', 'installer/**', 'build.ps1', '.github/workflows/build-windows.yml']
+    paths: ['src/**', 'installer/**', 'build.ps1', 'tests/**', '.github/workflows/build-windows.yml']
 
 jobs:
   build:
@@ -22,6 +22,16 @@ jobs:
       - name: Build win-x64 (includes self-test)
         shell: pwsh
         run: .\build.ps1
+      - name: Smoke-test installer installation and shortcuts
+        shell: pwsh
+        run: .\\tests\\installer-smoke.ps1
+      - name: Upload installer test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HF811Collector-installer-smoke-log
+          path: ${{ runner.temp }}/HF811Collector-install-smoke.log
+          if-no-files-found: ignore
       - name: Upload x64 setup and SHA256 checksum
         uses: actions/upload-artifact@v4
         with:
