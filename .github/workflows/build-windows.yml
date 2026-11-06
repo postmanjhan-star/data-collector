@@ -61,3 +61,30 @@ jobs:
             dist/installer/HF811Collector-win-x64-Setup.exe
             dist/installer/SHA256SUMS.txt
           if-no-files-found: error
+
+  receiver-container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Linux receiver container
+        run: docker build -f server/Dockerfile -t hf811-receiver:ci .
+      - name: Verify receiver Docker API and authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name hf811-receiver-ci -p 127.0.0.1:18091:8090 \
+            -e HF811_SERVER_API_KEY=ci-only-local-testing-key-2026 \
+            hf811-receiver:ci
+          trap 'docker logs hf811-receiver-ci; docker rm -f hf811-receiver-ci || true' EXIT
+          for i in $(seq 1 35); do
+            if curl -fsS http://127.0.0.1:18091/health; then break; fi
+            sleep 1
+          done
+          curl -fsS -H 'X-Collector-Key: ci-only-local-testing-key-2026' \
+            http://127.0.0.1:18091/api/v1/collector/stats
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            http://127.0.0.1:18091/api/v1/collector/stats)
+          test "$status" = "401"
+          echo "RECEIVER CONTAINER SMOKE PASS"
