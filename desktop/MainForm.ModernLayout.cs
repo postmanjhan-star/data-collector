@@ -103,16 +103,19 @@ internal sealed partial class MainForm
         _overviewTab.Click += (_, _) => SwitchPage(0);
         _settingsTab.Click += (_, _) => SwitchPage(1);
         _logsTab.Click += (_, _) => SwitchPage(2);
-        nav.Controls.AddRange(new Control[] { _overviewTab, _settingsTab, _logsTab });
+        _syncTab.Click += (_, _) => SwitchPage(3);
+        nav.Controls.AddRange(new Control[] { _overviewTab, _settingsTab, _logsTab, _syncTab });
         root.Controls.Add(nav, 0, 2);
 
         _pageHost.Margin = new Padding(0, 6, 0, 4);
         _overviewPage = BuildOverview();
         _settingsPage = BuildSettings();
         _logsPage = BuildLogs();
+        _syncPage = BuildSyncPage();
         _pageHost.Controls.Add(_overviewPage);
         _pageHost.Controls.Add(_settingsPage);
         _pageHost.Controls.Add(_logsPage);
+        _pageHost.Controls.Add(_syncPage);
         root.Controls.Add(_pageHost, 0, 3);
         SwitchPage(0);
 
@@ -284,11 +287,12 @@ internal sealed partial class MainForm
 
     private void SwitchPage(int page)
     {
-        if (_overviewPage == null || _settingsPage == null || _logsPage == null) return;
+        if (_overviewPage == null || _settingsPage == null || _logsPage == null || _syncPage == null) return;
         _overviewPage.Visible = page == 0;
         _settingsPage.Visible = page == 1;
         _logsPage.Visible = page == 2;
-        foreach (var (button, index) in new[] { (_overviewTab, 0), (_settingsTab, 1), (_logsTab, 2) })
+        _syncPage.Visible = page == 3;
+        foreach (var (button, index) in new[] { (_overviewTab, 0), (_settingsTab, 1), (_logsTab, 2), (_syncTab, 3) })
         {
             button.BackColor = page == index ? Color.White : BackColor;
             button.ForeColor = page == index ? BlueModern : MutedModern;
@@ -297,6 +301,7 @@ internal sealed partial class MainForm
         if (page == 0) _overviewPage.BringToFront();
         if (page == 1) _settingsPage.BringToFront();
         if (page == 2) _logsPage.BringToFront();
+        if (page == 3) _syncPage.BringToFront();
         UpdateConnectionLine();
     }
 
