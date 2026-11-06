@@ -119,7 +119,10 @@ internal sealed class DiscoveryDialog : Form
         for (int i = 0; i < _adapters.Items.Count; i++)
             if (_adapters.Items[i] is AdapterNetwork n && n.Prefix == currentPrefix) { selected = i; break; }
         if (_adapters.Items.Count > 0) _adapters.SelectedIndex = selected >= 0 ? selected : 0;
-        if (currentPrefix != null && currentPrefix != "127.0.0") _prefix.Text = currentPrefix;
+        if (currentPrefix != null && currentPrefix != "127.0.0")
+            _prefix.Text = currentPrefix;
+        else if (_adapters.SelectedItem is AdapterNetwork initialAdapter)
+            _prefix.Text = initialAdapter.Prefix;
         _adapters.SelectedIndexChanged += (_, _) =>
         {
             if (_adapters.SelectedItem is AdapterNetwork n) _prefix.Text = n.Prefix;
