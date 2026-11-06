@@ -54,6 +54,7 @@ internal sealed partial class MainForm : Form
     private CancellationTokenSource? _collectorCts;
     private Task? _collectorTask;
     private ScanStore? _store;
+    private SyncAgent? _syncAgent;
     private Mutex? _collectorMutex;
     private CancellationTokenSource? _simulatorCts;
     private Task? _simulatorTask;
@@ -251,6 +252,7 @@ internal sealed partial class MainForm : Form
         _dedup.Value = Math.Clamp(cfg.DedupWindowMs, 0, 600000);
         _reconnect.Value = Math.Clamp(cfg.ReconnectMs, 1, 600000);
         _idleGap.Value = Math.Clamp(cfg.IdleGapMs, 1, 600000);
+        ApplySyncSettings(cfg);
         UpdateConnectionLine();
     }
 
@@ -266,14 +268,27 @@ internal sealed partial class MainForm : Form
         DedupWindowMs = (int)_dedup.Value,
         NoReadValue = _noRead.Text,
         ApiPort = (int)_apiPort.Value,
-        DatabasePath = _dbPath.Text.Trim()
+        DatabasePath = _dbPath.Text.Trim(),
+        SyncEnabled = _syncEnabled.Checked,
+        CollectorId = _collectorId.Text.Trim(),
+        ServerUrl = _serverUrl.Text.Trim(),
+        SyncIntervalSeconds = (int)_syncInterval.Value,
+        SyncBatchSize = (int)_batchSize.Value
     };
 
     private bool SaveSettings(bool notify = true)
     {
         try
         {
-            ConfigFile.Save(ReadForm());
+            var options = ReadForm();
+            options.Validate();
+            if (!string.IsNullOrWhiteSpace(_serverKey.Text))
+            {
+                SyncSecrets.Save(_serverKey.Text);
+                _serverKey.Clear();
+            }
+            ConfigFile.Save(options);
+            RefreshSecretStatus();
             if (notify)
                 MessageBox.Show(_collectorCts is null
                     ? "已儲存設定。"
@@ -307,9 +322,10 @@ internal sealed partial class MainForm : Form
             }
 
             _store = new ScanStore(cfg.DatabasePath, cfg.DedupWindowMs, cfg.NoReadValue);
+            _syncAgent = new SyncAgent(cfg, _store);
             _apiRunningPort = cfg.ApiPort;
             _collectorCts = new CancellationTokenSource();
-            var task = RunWorkersAsync(cfg, _store, _collectorCts);
+            var task = RunWorkersAsync(cfg, _store, _syncAgent, _collectorCts);
             _collectorTask = task;
             SetStatus("正在連線", Warning);
             AppendLog("Collector 已啟動，正在等待掃描器資料。");
@@ -320,6 +336,8 @@ internal sealed partial class MainForm : Form
         {
             _collectorCts?.Dispose();
             _collectorCts = null;
+            _syncAgent?.Dispose();
+            _syncAgent = null;
             _store?.Dispose();
             _store = null;
             _collectorMutex?.Dispose();
@@ -330,13 +348,14 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private static async Task RunWorkersAsync(Settings cfg, ScanStore store, CancellationTokenSource cts)
+    private static async Task RunWorkersAsync(Settings cfg, ScanStore store, SyncAgent sync, CancellationTokenSource cts)
     {
         Task api = LocalApi.RunAsync(store, cfg.ApiPort, cts.Token);
         Task receiver = CollectorRunner.RunAsync(cfg, store, cts.Token);
+        Task uploader = sync.RunAsync(cts.Token);
         try
         {
-            var finished = await Task.WhenAny(api, receiver);
+            var finished = await Task.WhenAny(api, receiver, uploader);
             if (!cts.IsCancellationRequested)
             {
                 await finished;
@@ -346,7 +365,7 @@ internal sealed partial class MainForm : Form
         finally
         {
             cts.Cancel();
-            try { await Task.WhenAll(api, receiver); }
+            try { await Task.WhenAll(api, receiver, uploader); }
             catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
         }
     }
@@ -372,6 +391,8 @@ internal sealed partial class MainForm : Form
         finally
         {
             _collectorTask = null;
+            _syncAgent?.Dispose();
+            _syncAgent = null;
             _store?.Dispose();
             _store = null;
             _collectorMutex?.Dispose();
@@ -444,6 +465,7 @@ internal sealed partial class MainForm : Form
             _accepted.Text = r.GetProperty("accepted").GetInt64().ToString("N0");
             _duplicates.Text = r.GetProperty("duplicates").GetInt64().ToString("N0");
             _noReads.Text = r.GetProperty("no_reads").GetInt64().ToString("N0");
+            RefreshSyncDisplay();
             using var entries = JsonDocument.Parse(JsonSerializer.Serialize(_store.Events(1)));
             var rows = entries.RootElement.GetProperty("events");
             if (rows.GetArrayLength() > 0)
@@ -511,6 +533,7 @@ internal sealed partial class MainForm : Form
         _start.Enabled = !started && !_stopping;
         _stop.Enabled = started && !_stopping;
         _simulate.Text = _simulatorCts == null ? "◉  開始模擬掃描" : "■  停止模擬";
+        _syncNow.Enabled = started && !_stopping && _syncEnabled.Checked;
     }
 
     private void RestoreWindow()
