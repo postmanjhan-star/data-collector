@@ -25,6 +25,7 @@ Honeywell HF811 TCP -> Windows Collector -> SQLite scans (durable)
 
 - 先寫本機 SQLite，伺服器斷線時**不刪除、不漏傳已存入資料庫的事件**。
 - 升級 v1.4 SQLite 時採**增量 migration**：替既有資料補上永久 `event_id`，保留原有掃描時間與所有欄位，不清空舊資料。
+- **重要：首次啟用 Sync 會把舊 SQLite 中所有 Pending 紀錄一起補傳，包括 v1.4 模擬器產生的條碼。** 正式環境上線前請先確認使用的是正確資料庫；如須隔離歷史測試資料，應先備份原資料並改用新 SQLite 路徑，不要刪除尚需追溯的原始紀錄。
 - 每筆事件包含固定 UUID、設備標籤、條碼、UTC 時間、原始 HEX、來源、重複標記、NOREAD。
 - 上傳最多 100 筆／批（預設 50），每 5 秒嘗試；錯誤時延後重試最多 300 秒。
 - 只有伺服器提交 DB 後回 `acknowledged_event_ids`，Collector 才把對應事件設為 `synced`。
@@ -133,7 +134,7 @@ Content-Type: application/json
 | 修改 API URL/Key | 儲存後停止並重新啟動 Collector；手動立即同步使用當次啟動設定 |
 | Windows 使用者切換 | 設定與 DPAPI 金鑰是**每個 Windows 帳號獨立**，全部人安裝 ≠ 共用同步身分 |
 
-GUI「測試伺服器連線」檢查接收服務，但正式上傳仍取決於完整認證和回執；若無法同步，確認 Key、URL、可信 TLS 憑證、網段與防火牆。
+GUI「測試伺服器連線」使用 API Key 呼叫 `/api/v1/collector/stats`，可驗證 HTTPS 連線與認證；但實際事件 ACK 仍需在掃描後檢查。若無法同步，確認 Key、URL、可信 TLS 憑證、網段與防火牆。
 
 此版不會清理本機的 Synced 歷史資料；正式大流量導入前需規畫保留年限、SQLite 備份/歸檔與磁碟告警。
 
