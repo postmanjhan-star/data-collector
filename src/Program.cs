@@ -82,6 +82,11 @@ public sealed class Settings
     public string NoReadValue { get; set; } = "NOREAD";
     public int ApiPort { get; set; } = 8088;
     public string DatabasePath { get; set; } = "";
+    public bool SyncEnabled { get; set; } = false;
+    public string CollectorId { get; set; } = "SMT-LINE01-PC01";
+    public string ServerUrl { get; set; } = "";
+    public int SyncIntervalSeconds { get; set; } = 5;
+    public int SyncBatchSize { get; set; } = 50;
 
     public static Settings Load(string file)
     {
@@ -98,6 +103,8 @@ public sealed class Settings
             throw new ArgumentException("Mode must be connect or listen");
         if (string.IsNullOrWhiteSpace(cfg.DeviceId))
             throw new ArgumentException("DeviceId is required");
+        ServerSyncSettings.Validate(cfg.SyncEnabled, cfg.CollectorId, cfg.ServerUrl,
+            cfg.SyncIntervalSeconds, cfg.SyncBatchSize);
         if (string.IsNullOrWhiteSpace(cfg.DatabasePath))
             cfg.DatabasePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "HF811Collector", "data", "scans.sqlite3");
@@ -159,7 +166,7 @@ public sealed class BarcodeFramer
     };
 }
 
-public sealed class ScanStore : IDisposable
+public sealed partial class ScanStore : IDisposable
 {
     readonly SqliteConnection _db;
     readonly object _gate = new();
@@ -196,6 +203,7 @@ public sealed class ScanStore : IDisposable
             CREATE INDEX IF NOT EXISTS idx_scans_barcode ON scans(barcode);
             """;
         cmd.ExecuteNonQuery();
+        UpgradeSyncSchema();
         _dedupMs = dedupWindowMs;
         _noRead = noRead;
     }
@@ -212,9 +220,10 @@ public sealed class ScanStore : IDisposable
             if (!noRead) _recent[key] = now;
             using var cmd = _db.CreateCommand();
             cmd.CommandText = """
-                INSERT INTO scans(received_at_utc,device_id,barcode,raw_hex,source_address,is_duplicate,is_no_read)
-                VALUES($time,$device,$barcode,$hex,$source,$duplicate,$noRead)
+                INSERT INTO scans(event_id,received_at_utc,device_id,barcode,raw_hex,source_address,is_duplicate,is_no_read)
+                VALUES($event,$time,$device,$barcode,$hex,$source,$duplicate,$noRead)
                 """;
+            cmd.Parameters.AddWithValue("$event", Guid.NewGuid().ToString("D"));
             cmd.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture));
             cmd.Parameters.AddWithValue("$device", device);
             cmd.Parameters.AddWithValue("$barcode", barcode);
@@ -651,14 +660,16 @@ public static class Program
             using var store = new ScanStore(cfg.DatabasePath, cfg.DedupWindowMs, cfg.NoReadValue);
             var api = LocalApi.RunAsync(store, cfg.ApiPort, stop.Token);
             var collector = CollectorRunner.RunAsync(cfg, store, stop.Token);
-            // If either worker exits unexpectedly, stop the other instead of hiding a fault.
-            var finished = await Task.WhenAny(api, collector);
+            using var sync = new SyncAgent(cfg, store);
+            var syncTask = sync.RunAsync(stop.Token);
+            // If any worker exits unexpectedly, stop the other workers instead of hiding a fault.
+            var finished = await Task.WhenAny(api, collector, syncTask);
             if (!stop.IsCancellationRequested)
             {
                 AppLog.WriteLine("[Collector] A worker terminated; shutting down.");
                 stop.Cancel();
             }
-            try { await Task.WhenAll(api, collector); }
+            try { await Task.WhenAll(api, collector, syncTask); }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
             // Preserve failures from a completed worker (a fault must not look successful).
             if (finished.IsFaulted) await finished;
