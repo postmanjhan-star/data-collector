@@ -22,15 +22,18 @@ jobs:
       - name: Build win-x64 (includes self-test)
         shell: pwsh
         run: .\build.ps1
-      - name: Smoke-test installer installation and shortcuts
+      - name: Smoke-test current-user installation (no elevation)
         shell: pwsh
-        run: .\\tests\\installer-smoke.ps1
+        run: .\tests\installer-smoke.ps1 -InstallMode CurrentUser
+      - name: Smoke-test all-users installation (administrative)
+        shell: pwsh
+        run: .\tests\installer-smoke.ps1 -InstallMode AllUsers
       - name: Upload installer test log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: HF811Collector-installer-smoke-log
-          path: ${{ runner.temp }}/HF811Collector-install-smoke.log
+          path: ${{ runner.temp }}/HF811Collector-install-smoke-*.log
           if-no-files-found: ignore
       - name: Upload x64 setup and SHA256 checksum
         uses: actions/upload-artifact@v4
