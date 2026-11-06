@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
@@ -532,6 +533,45 @@ public static class SelfTest
     }
 }
 
+public static class ConfigBootstrap
+{
+    public static string DefaultPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "HF811Collector", "config.json");
+
+    // All-users setup installs under Program Files, but each Windows account owns its
+    // own configuration and SQLite database. Never write user data from elevated Setup.
+    public static string EnsureDefault()
+    {
+        string configPath = DefaultPath;
+        if (File.Exists(configPath)) return configPath;
+        string template = Path.Combine(AppContext.BaseDirectory, "config.default.json");
+        if (!File.Exists(template))
+            throw new FileNotFoundException("Bundled default configuration not found", template);
+        Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+        // Atomic exclusive create avoids overwriting customized settings on concurrent starts.
+        using var input = File.OpenRead(template);
+        try
+        {
+            using var output = new FileStream(configPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            input.CopyTo(output);
+        }
+        catch (IOException) when (File.Exists(configPath))
+        {
+            // Another startup already created it.
+        }
+        return configPath;
+    }
+
+    public static string EnsureWhenDefault(string configPath)
+    {
+        if (string.Equals(Path.GetFullPath(configPath), Path.GetFullPath(DefaultPath),
+            StringComparison.OrdinalIgnoreCase))
+            EnsureDefault();
+        return configPath;
+    }
+}
+
 public static class Program
 {
     public static async Task<int> Main(string[] args)
@@ -541,6 +581,8 @@ public static class Program
             Console.WriteLine("""
                 HF811 Collector Lab (C#)
                   HF811Collector.exe collector --config "C:\path\config.json"
+                  HF811Collector.exe init-config
+                  HF811Collector.exe edit-config
                   HF811Collector.exe simulator [--mode server|client] [--host 127.0.0.1]
                     [--port 55256] [--interval-ms 200] [--count 0]
                     [--repeat-every 5] [--no-read-every 0] [--disconnect-every 0]
@@ -553,6 +595,19 @@ public static class Program
         try
         {
             if (args[0] == "selftest") return SelfTest.Run();
+            if (args[0] == "init-config")
+            {
+                Console.WriteLine(ConfigBootstrap.EnsureDefault());
+                return 0;
+            }
+            if (args[0] == "edit-config")
+            {
+                string path = ConfigBootstrap.EnsureDefault();
+                var editor = new ProcessStartInfo("notepad.exe") { UseShellExecute = false };
+                editor.ArgumentList.Add(path);
+                Process.Start(editor);
+                return 0;
+            }
             if (args[0] == "simulator")
             {
                 await SimulatorRunner.RunAsync(args, stop.Token);
@@ -569,6 +624,7 @@ public static class Program
             string dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HF811Collector");
             AppLog.Initialize(Path.Combine(dataDir, "logs"));
             string configPath = SimulatorRunner.Arg(args, "--config", Path.Combine(dataDir, "config.json"));
+            ConfigBootstrap.EnsureWhenDefault(configPath);
             Settings cfg = Settings.Load(configPath);
             using var store = new ScanStore(cfg.DatabasePath, cfg.DedupWindowMs, cfg.NoReadValue);
             var api = LocalApi.RunAsync(store, cfg.ApiPort, stop.Token);
