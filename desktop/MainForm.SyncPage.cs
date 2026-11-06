@@ -214,13 +214,21 @@ internal sealed partial class MainForm
             ServerSyncSettings.Validate(true, value.CollectorId, value.ServerUrl,
                 value.SyncIntervalSeconds, value.SyncBatchSize);
             var endpoint = new Uri(value.ServerUrl);
+            const string suffix = "/scans/batch";
+            if (!endpoint.AbsolutePath.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("API URL 應以 /scans/batch 結尾");
+            string statsUrl = endpoint.GetLeftPart(UriPartial.Authority)
+                + endpoint.AbsolutePath[..^suffix.Length] + "/stats";
+            string key = !string.IsNullOrWhiteSpace(_serverKey.Text)
+                ? _serverKey.Text.Trim() : SyncSecrets.Read();
             using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
             { Timeout = TimeSpan.FromSeconds(6) };
-            using var response = await http.GetAsync(new Uri(endpoint.GetLeftPart(UriPartial.Authority) + "/health"));
+            http.DefaultRequestHeaders.Add("X-Collector-Key", key);
+            using var response = await http.GetAsync(statsUrl);
             MessageBox.Show(this, response.IsSuccessStatusCode
-                ? "伺服器健康檢查連線成功。\n注意：此測試不代表 API Key 或批次接收權限已驗證。"
-                : $"伺服器回覆 HTTP {(int)response.StatusCode}",
-                "Server Sync · 連線測試", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ? "接收伺服器連線與 API Key 驗證成功。"
+                : $"伺服器回覆 HTTP {(int)response.StatusCode}，請確認 URL／API Key。",
+                "Server Sync · 連線與認證測試", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex) { ReportError("無法連到伺服器", ex); }
     }
