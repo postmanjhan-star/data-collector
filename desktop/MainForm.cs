@@ -167,7 +167,7 @@ internal sealed class MainForm : Form
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136));
-        var mark = new PictureBox { Image = Icon.ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Dock = DockStyle.Fill, Margin = new Padding(2, 10, 8, 10) };
+        var mark = new PictureBox { Image = (Icon ?? SystemIcons.Application).ToBitmap(), SizeMode = PictureBoxSizeMode.Zoom, Dock = DockStyle.Fill, Margin = new Padding(2, 10, 8, 10) };
         heading.Controls.Add(mark, 0, 0);
         var names = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 6, 0, 0) };
         names.Controls.Add(TextLabel("HF811 Collector", 18, true, Ink));
