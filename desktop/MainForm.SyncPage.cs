@@ -123,7 +123,7 @@ internal sealed partial class MainForm
         status.Controls.Add(stateContent, 0, 1);
         root.Controls.Add(status, 1, 0);
 
-        var bottom = MLabel("離線時先寫入本機 SQLite；只有伺服器回傳 ACK 後才標記已同步。重複／NOREAD 也會保留為原始事件。", 9, false, MutedModern);
+        var bottom = MLabel("首次啟用會補傳 SQLite 中全部既有紀錄，包括先前的模擬掃描資料。請先用測試接收端驗證。\n離線時先寫入 SQLite，只有收到伺服器 ACK 才標記已同步。", 9, false, Color.FromArgb(150, 96, 41));
         root.SetColumnSpan(bottom, 2);
         root.Controls.Add(bottom, 0, 1);
         page.Controls.Add(root);
