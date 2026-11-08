@@ -1,5 +1,7 @@
 # HF811 Collector v1.5 — Server Sync 部署與驗收
 
+> **現有公司伺服器如果是 PHP 或 Python，請優先閱讀 [PHP／Python Receiver 部署指南](RECEIVER_PHP_PYTHON.md)。** 本頁的 .NET Receiver 是可選的測試參考實作，產線 Windows Collector 透過標準 HTTPS JSON 也能對接 PHP / FastAPI。
+
 > 適用：Windows 10 x64 HF811 Collector（WinForms GUI）與公司內網測試接收端。
 > 這是**原始掃描事件同步**，不會自動判定 SMT 工令或 PCB 過站成功。
 
