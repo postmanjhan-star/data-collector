@@ -1,4 +1,6 @@
-# Apache: set DocumentRoot to server-php/public and enable mod_rewrite.
+# Apache 2.4+: point the virtual host DocumentRoot at server-php/public.
+# Routing must terminate on index.php rather than looping through internal rewrites.
 Options -Indexes
 RewriteEngine On
-RewriteRule ^ index.php [L,QSA]
+RewriteRule ^index\.php$ - [L]
+RewriteRule ^ index.php [END,QSA]
