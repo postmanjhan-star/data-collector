@@ -1,0 +1,75 @@
+name: Validate PHP and Python HF811 Receivers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server-python/**'
+      - 'server-php/**'
+      - 'src/**'
+      - '.github/workflows/receiver-compat.yml'
+
+jobs:
+  receiver-contract:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [python, php]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Configure Python
+        if: matrix.backend == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies
+        if: matrix.backend == 'python'
+        run: |
+          python -m pip install -r server-python/requirements-test.txt
+          python -m pytest -q server-python/tests
+      - name: Configure PHP
+        if: matrix.backend == 'php'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, pdo_mysql
+          coverage: none
+      - name: Lint PHP receiver
+        if: matrix.backend == 'php'
+        run: |
+          php -l server-php/public/index.php
+          php -l server-php/router.php
+          php -m | grep -i pdo_sqlite
+      - name: Verify unchanged C# Collector against real receiver
+        shell: bash
+        env:
+          RECEIVER: ${{ matrix.backend }}
+        run: |
+          set -euo pipefail
+          export HF811_SERVER_API_KEY='ci-receiver-test-key-12345678'
+          export HF811_SYNC_API_KEY="$HF811_SERVER_API_KEY"
+          if [ "$RECEIVER" = 'python' ]; then
+            export HF811_DATABASE_URL="sqlite:///$RUNNER_TEMP/hf811-python-receiver.sqlite3"
+            python -m uvicorn app:app --app-dir server-python --host 127.0.0.1 --port 18090 >"$RUNNER_TEMP/receiver.log" 2>&1 &
+          else
+            export HF811_PDO_DSN="sqlite:$RUNNER_TEMP/hf811-php-receiver.sqlite3"
+            php -S 127.0.0.1:18090 -t server-php/public server-php/router.php >"$RUNNER_TEMP/receiver.log" 2>&1 &
+          fi
+          server_pid=$!
+          trap 'cat "$RUNNER_TEMP/receiver.log"; kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:18090/health; then ready=true; break; fi
+            sleep 0.5
+          done
+          test "$ready" = true
+          dotnet run --project src/HF811Collector.csproj --configuration Release -- \
+            sync-e2e --url http://127.0.0.1:18090/api/v1/collector/scans/batch
+          echo "C# TO $RECEIVER RECEIVER: END-TO-END PASS"
