@@ -73,3 +73,73 @@ jobs:
           dotnet run --project src/HF811Collector.csproj --configuration Release -- \
             sync-e2e --url http://127.0.0.1:18090/api/v1/collector/scans/batch
           echo "C# TO $RECEIVER RECEIVER: END-TO-END PASS"
+
+  mysql-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [python, php]
+    permissions:
+      contents: read
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-root-password
+          MARIADB_DATABASE: hf811_test
+          MARIADB_USER: hf811
+          MARIADB_PASSWORD: ci-db-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        if: matrix.backend == 'python'
+        with:
+          python-version: '3.12'
+      - uses: shivammathur/setup-php@v2
+        if: matrix.backend == 'php'
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, pdo_sqlite
+          coverage: none
+      - name: Install FastAPI dependencies
+        if: matrix.backend == 'python'
+        run: python -m pip install -r server-python/requirements.txt
+      - name: Test C# Collector -> receiver -> MariaDB
+        shell: bash
+        env:
+          RECEIVER: ${{ matrix.backend }}
+        run: |
+          set -euo pipefail
+          export HF811_SERVER_API_KEY='ci-mysql-test-receiver-key-123456'
+          export HF811_SYNC_API_KEY="$HF811_SERVER_API_KEY"
+          if [ "$RECEIVER" = 'python' ]; then
+            export HF811_DATABASE_URL='mysql+pymysql://hf811:ci-db-password@127.0.0.1:3306/hf811_test?charset=utf8mb4'
+            python -m uvicorn app:app --app-dir server-python --host 127.0.0.1 --port 18090 >"$RUNNER_TEMP/mysql-receiver.log" 2>&1 &
+          else
+            export HF811_PDO_DSN='mysql:host=127.0.0.1;port=3306;dbname=hf811_test;charset=utf8mb4'
+            export HF811_DB_USER=hf811
+            export HF811_DB_PASSWORD=ci-db-password
+            php -S 127.0.0.1:18090 -t server-php/public server-php/router.php >"$RUNNER_TEMP/mysql-receiver.log" 2>&1 &
+          fi
+          server_pid=$!
+          trap 'cat "$RUNNER_TEMP/mysql-receiver.log"; kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:18090/health; then ready=true; break; fi
+            sleep 0.5
+          done
+          test "$ready" = true
+          dotnet run --project src/HF811Collector.csproj --configuration Release -- \
+            sync-e2e --url http://127.0.0.1:18090/api/v1/collector/scans/batch
+          echo "C# TO $RECEIVER TO MARIADB: END-TO-END PASS"
