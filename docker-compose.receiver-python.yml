@@ -1,0 +1,19 @@
+# Bind to loopback; put HTTPS reverse proxy and access controls in front.
+# HF811_DATABASE_URL supports sqlite:///./data/receiver.sqlite3 or mysql+pymysql://...
+services:
+  hf811-receiver-python:
+    build:
+      context: .
+      dockerfile: server-python/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      HF811_SERVER_API_KEY: ${HF811_SERVER_API_KEY:?Provide a secure key via your deployment secret mechanism}
+      HF811_DATABASE_URL: sqlite:///./data/receiver.sqlite3
+    volumes:
+      - hf811_python_data:/srv/data
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  hf811_python_data:
