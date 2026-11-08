@@ -1,5 +1,8 @@
 # HF811 Collector — Windows 10 x64 GUI／Server Sync（v1.5）
 
+> **公司使用 PHP 或 Python 伺服器？** C# Collector v1.5 不需要更改。接收端已提供 [FastAPI](server-python/) 與 [PHP PDO](server-php/) 兩種相同 ACK 協定的實作；請看 [PHP／Python 部署指南](docs/RECEIVER_PHP_PYTHON.md)。ASP.NET 版本只是保留的參考接收端。
+
+
 **GitHub Actions 會編譯並提供可下載的 Setup.exe Artifact；Repository 本身保存原始碼，不追蹤編譯成品。**
 本製作環境沒有 .NET SDK / Windows / Inno Setup，無法現場編譯或驗證 Windows 10 上的實際執行情況；請在 Windows 開發機或 GitHub Actions 編譯、自動測試，然後在產線一台舊筆電試裝。
 
