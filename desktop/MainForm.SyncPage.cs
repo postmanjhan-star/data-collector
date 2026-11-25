@@ -74,13 +74,13 @@ internal sealed partial class MainForm
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 442));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
 
-        var settings = SettingsCard("伺服器連線設定", "HTTPS 批次上傳 · 失敗自動補傳");
+        var settings = SettingsCard("伺服器連線設定", "HTTPS / MQTT（測試） · 失敗自動補傳");
         settings.Margin = new Padding(0, 0, 12, 7);
         var controls = SettingsGrid();
         AddModernField(controls, "自動上傳", _syncEnabled);
         AddModernField(controls, "Collector ID", _collectorId);
-        AddModernField(controls, "接收端 API URL", _serverUrl);
-        AddModernField(controls, "API Key（DPAPI）", _serverKey);
+        AddModernField(controls, "接收端 HTTPS / MQTT URL", _serverUrl);
+        AddModernField(controls, "API Key / MQTT 密碼", _serverKey);
         AddModernField(controls, "憑證狀態", _serverKeyState);
         AddModernField(controls, "同步間隔（秒）", _syncInterval);
         AddModernField(controls, "每批最大筆數", _batchSize);
@@ -213,6 +213,13 @@ internal sealed partial class MainForm
             var value = ReadForm();
             ServerSyncSettings.Validate(true, value.CollectorId, value.ServerUrl,
                 value.SyncIntervalSeconds, value.SyncBatchSize);
+            if (MqttBatchTransport.IsMqtt(value.ServerUrl))
+            {
+                string password = !string.IsNullOrWhiteSpace(_serverKey.Text) ? _serverKey.Text.Trim() : SyncSecrets.Read();
+                await MqttBatchTransport.ProbeAsync(value.ServerUrl, value.CollectorId, password, CancellationToken.None);
+                MessageBox.Show(this, "MQTT Broker 連線及 ACK 訂閱成功；實際入庫須以掃描同步確認。", "MQTT 測試");
+                return;
+            }
             var endpoint = new Uri(value.ServerUrl);
             const string suffix = "/scans/batch";
             if (!endpoint.AbsolutePath.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))

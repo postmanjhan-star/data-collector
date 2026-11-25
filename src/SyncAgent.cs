@@ -17,6 +17,7 @@ public static class ServerSyncSettings
             collectorId.Any(c => !char.IsLetterOrDigit(c) && c is not ('-' or '_' or '.')))
             throw new ArgumentException("CollectorId must be 1..96 letters, digits, dashes, dots or underscores");
         if (!enabled && string.IsNullOrWhiteSpace(serverUrl)) return;
+        if (MqttBatchTransport.IsMqtt(serverUrl)) { MqttBatchTransport.Validate(serverUrl, collectorId); return; }
         if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var url) ||
             (url.Scheme != Uri.UriSchemeHttps && url.Scheme != Uri.UriSchemeHttp) ||
             !string.IsNullOrEmpty(url.UserInfo) || !string.IsNullOrEmpty(url.Fragment) ||
@@ -136,15 +137,24 @@ public sealed class SyncAgent : IDisposable
             {
                 string key = SyncSecrets.Read();
                 if (key.Length < 16) throw new InvalidOperationException("Server API key is invalid");
-                using var request = new HttpRequestMessage(HttpMethod.Post, _cfg.ServerUrl);
-                request.Headers.Add("X-Collector-Key", key);
-                request.Content = JsonContent.Create(new UploadEnvelope(_cfg.CollectorId, batch));
-                using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
-                if (!response.IsSuccessStatusCode)
-                    throw new HttpRequestException($"Server returned HTTP {(int)response.StatusCode}; records remain pending");
-                await using var body = await response.Content.ReadAsStreamAsync(token);
-                var receipt = await JsonSerializer.DeserializeAsync<UploadReceipt>(body,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, token);
+                var envelope = new UploadEnvelope(_cfg.CollectorId, batch);
+                UploadReceipt? receipt;
+                if (MqttBatchTransport.IsMqtt(_cfg.ServerUrl))
+                {
+                    receipt = await MqttBatchTransport.SendAsync(_cfg.ServerUrl, key, envelope, token);
+                }
+                else
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Post, _cfg.ServerUrl);
+                    request.Headers.Add("X-Collector-Key", key);
+                    request.Content = JsonContent.Create(envelope);
+                    using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+                    if (!response.IsSuccessStatusCode)
+                        throw new HttpRequestException($"Server returned HTTP {(int)response.StatusCode}; records remain pending");
+                    await using var body = await response.Content.ReadAsStreamAsync(token);
+                    receipt = await JsonSerializer.DeserializeAsync<UploadReceipt>(body,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, token);
+                }
                 if (receipt is null) throw new InvalidDataException("Server returned empty receipt");
                 _store.AcceptReceipt(batch, receipt);
                 int accepted = receipt.AcknowledgedEventIds?.Count ?? 0;

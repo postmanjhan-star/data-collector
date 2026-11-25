@@ -618,6 +618,7 @@ public static class Program
         try
         {
             if (args[0] == "selftest") return SelfTest.Run();
+            if (args[0] == "mqtt-e2e") return await MqttIntegrationTest.RunAsync(args, stop.Token);
             if (args[0] == "sync-e2e") return await SyncIntegrationTest.RunAsync(args, stop.Token);
             if (args[0] == "init-config")
             {
