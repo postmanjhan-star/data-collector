@@ -88,8 +88,11 @@ internal sealed partial class MainForm
         using var form = new MainForm(false, layoutTest: true);
         try
         {
-            form.Size = new Size(1024, 640);
+            form.ShowInTaskbar = false;
+            form.Show();
+            form.Size = new Size(1100, 740);
             form.PerformLayout();
+            Application.DoEvents();
             form.SwitchPage(3);
             form._transportChoice.SelectedIndex = 2;
             if (form._serverUrl.Text != "mqtt://127.0.0.1:1883") throw new InvalidOperationException("MQTT preset failed");
@@ -103,9 +106,49 @@ internal sealed partial class MainForm
             if (form._host.Enabled || form._serverUrl.Enabled || form._transportChoice.Enabled) throw new InvalidOperationException("Settings lock failed");
             form.SetConfigurationEditable(true);
             if (!form._host.Enabled || !form._serverUrl.Enabled) throw new InvalidOperationException("Settings unlock failed");
-            foreach (int page in new[] { 0, 1, 2, 3 }) form.SwitchPage(page);
+            foreach (Size size in new[] { new Size(1100, 740), new Size(1024, 640), new Size(900, 620) })
+            {
+                form.Size = size;
+                foreach (int page in new[] { 0, 1, 2, 3 })
+                {
+                    form.SwitchPage(page);
+                    form.PerformLayout();
+                    Application.DoEvents();
+                    form.AssertTextFits("AppHeading", "AppSubtitle");
+                    if (page == 0) form.AssertTextFits("ScannerConnectionNote", "OverviewSyncDetail");
+                    if (page == 3) form.AssertTextFits("CredentialState", "ShowSecret", "TransportHelp", "SyncWarning");
+                    string? output = Environment.GetEnvironmentVariable("HF811_LAYOUT_TEST_OUTPUT");
+                    if (!string.IsNullOrWhiteSpace(output))
+                    {
+                        Directory.CreateDirectory(output);
+                        using var bitmap = new Bitmap(form.Width, form.Height);
+                        form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        bitmap.Save(Path.Combine(output, $"layout-{size.Width}x{size.Height}-page{page}.png"),
+                            System.Drawing.Imaging.ImageFormat.Png);
+                    }
+                }
+            }
+            form.Hide();
         }
         finally { form._timer.Dispose(); form._tray.Dispose(); }
+    }
+
+    private void AssertTextFits(params string[] names)
+    {
+        foreach (string name in names)
+        {
+            var control = Controls.Find(name, true).Single();
+            // Measure real text at runner DPI and current width, including wrapped lines.
+            int availableWidth = control.ClientSize.Width - control.Padding.Horizontal;
+            if (control is CheckBox) availableWidth -= Math.Max(18, control.Font.Height);
+            if (availableWidth <= 0 || control.ClientSize.Height <= 0)
+                throw new InvalidOperationException($"Layout has zero-sized control: {name}");
+            var required = TextRenderer.MeasureText(control.Text, control.Font,
+                new Size(availableWidth, int.MaxValue),
+                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            if (required.Height > control.ClientSize.Height - control.Padding.Vertical)
+                throw new InvalidOperationException($"Clipped text: {name}, required {required.Height}, actual {control.ClientSize.Height}, DPI {DeviceDpi}");
+        }
     }
 
     private void CopyDiagnosticLog()

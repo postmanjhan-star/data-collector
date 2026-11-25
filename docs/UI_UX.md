@@ -5,3 +5,6 @@ Operator workflow: prepare offline test (new SQLite + upload disabled), start si
 Validation: existing installer and self-tests; real cross-repository Soda/EMQX integration is in Soda. Manual check at 1366×768 / 100% and 125% DPI with actual Windows desktop; inspect overview, keyboard tab order, forms, and narrow-window scrolling. No claim of visual validation without screenshots.
 
 The Windows --selftest now constructs the actual form without loading user data, exercises page switching, URL/protocol synchronization, password masking and configuration lock/unlock. This is a control-level test, not a visual/DPI screenshot review.
+
+## 1.6.1 clipping fix
+Operator screenshots exposed clipped header subtitle, overview details and show-password control. Title rows use preferred height; overview cards and form fields have explicit vertical space, and settings pages scroll rather than clipping. Credential state and password visibility are separate rows. Command buttons use proportional widths. The Windows self-test now shows the actual form, measures targeted text bounds using TextRenderer at the runner's DPI for three window sizes, and optionally writes screenshots and failure details. This is not a substitute for manual verification at actual 125%/150% Windows DPI.

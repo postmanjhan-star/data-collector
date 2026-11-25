@@ -43,11 +43,11 @@ internal sealed partial class MainForm
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5,
             BackColor = BackColor, Padding = new Padding(18, 10, 18, 8)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 74));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         Controls.Add(root);
 
         // Stable grid-based header instead of wrapping FlowLayout: no more overlap or clipped subtitle.
@@ -62,10 +62,18 @@ internal sealed partial class MainForm
         };
         header.Controls.Add(iconBox, 0, 0);
         var titles = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Margin = Padding.Empty };
-        titles.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-        titles.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
-        titles.Controls.Add(MLabel("SMT Data Collector", 20, true, InkModern), 0, 0);
-        titles.Controls.Add(MLabel("HF811 原始掃描採集 / SQLite / HTTP 或 MQTT", 9.5f, false, MutedModern), 0, 1);
+        titles.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        titles.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var title = MLabel("SMT Data Collector", 20, true, InkModern);
+        title.Name = "AppHeading";
+        title.AutoSize = true;
+        title.Margin = new Padding(0, 5, 0, 4);
+        var subtitle = MLabel("HF811 原始掃描採集 / SQLite / HTTP 或 MQTT", 9.5f, false, MutedModern);
+        subtitle.Name = "AppSubtitle";
+        subtitle.AutoSize = true;
+        subtitle.Margin = new Padding(0, 0, 0, 8);
+        titles.Controls.Add(title, 0, 0);
+        titles.Controls.Add(subtitle, 0, 1);
         header.Controls.Add(titles, 1, 0);
         _status.AutoSize = false;
         _status.Dock = DockStyle.Fill;
@@ -75,11 +83,9 @@ internal sealed partial class MainForm
         root.Controls.Add(header, 0, 0);
 
         var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, Margin = new Padding(0, 4, 0, 9) };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 144));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        // Proportional command widths prevent the final command from consuming half the window.
+        foreach (float width in new[] { 21f, 14f, 20f, 22f, 23f })
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, width));
         PrepareAction(_start, "▶  啟動收集", BlueModern);
         PrepareAction(_stop, "■  停止", Color.FromArgb(110, 128, 152));
         PrepareAction(_simulate, "模擬掃描", Color.White, InkModern);
@@ -132,27 +138,32 @@ internal sealed partial class MainForm
     private Panel BuildOverview()
     {
         var page = new Panel { Dock = DockStyle.Fill, BackColor = BackColor, AutoScroll = true };
-        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, MinimumSize = new Size(0, 390), ColumnCount = 1, RowCount = 3 };
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));
+        var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 490, ColumnCount = 1, RowCount = 3 };
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         page.Controls.Add(grid);
+        // Top-docked content can scroll vertically rather than compressing nested labels.
+        int minimumOverviewHeight = grid.Height;
+        page.Resize += (_, _) => grid.Height = Math.Max(minimumOverviewHeight, page.ClientSize.Height);
 
         var connectionCard = MCard();
         connectionCard.Margin = new Padding(0, 0, 0, 12);
         var connection = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3 };
         connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
-        connection.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
-        connection.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        connection.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        connection.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
         connection.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         connection.Controls.Add(MLabel("掃描器端點", 10, true, InkModern), 0, 0);
         connection.Controls.Add(MLabel("資料同步 / 伺服器回執", 10, true, InkModern), 1, 0);
         connection.Controls.Add(_overviewSync, 1, 1);
+        _overviewSyncDetail.Name = "OverviewSyncDetail";
         connection.Controls.Add(_overviewSyncDetail, 1, 2);
         _connectionLine.Font = new Font("Segoe UI", 15.5f, FontStyle.Bold);
         _connectionLine.TextAlign = ContentAlignment.MiddleLeft;
         connection.Controls.Add(_connectionLine, 0, 1);
+        _networkNote.Name = "ScannerConnectionNote";
         _networkNote.Font = new Font("Microsoft JhengHei UI", 9f);
         _networkNote.TextAlign = ContentAlignment.MiddleLeft;
         connection.Controls.Add(_networkNote, 0, 2);
@@ -176,7 +187,7 @@ internal sealed partial class MainForm
         var latestContent = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
         latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
-        latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         latestContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         latestContent.Controls.Add(MLabel("最新條碼", 12, true, InkModern), 0, 0);
         _lastCode.AutoSize = false;
@@ -217,12 +228,12 @@ internal sealed partial class MainForm
     private Panel BuildSettings()
     {
         var page = new Panel { Dock = DockStyle.Fill, BackColor = BackColor, AutoScroll = true };
-        var content = new TableLayoutPanel { Dock = DockStyle.Top, RowCount = 3, ColumnCount = 2, Height = 562 };
+        var content = new TableLayoutPanel { Dock = DockStyle.Top, RowCount = 3, ColumnCount = 2, Height = 650 };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 484));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 550));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
         var left = SettingsCard("連線與設備", "連線目標");
         left.Margin = new Padding(0, 0, 10, 8);
@@ -374,11 +385,11 @@ internal sealed partial class MainForm
             BackColor = Color.White, Dock = DockStyle.Fill, Padding = new Padding(16, 12, 16, 12),
             ColumnCount = 1, RowCount = 2, CellBorderStyle = TableLayoutPanelCellBorderStyle.None
         };
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
         card.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
-        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
+        var heading = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Margin = Padding.Empty };
+        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        heading.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         heading.Controls.Add(MLabel(title, 12, true, InkModern), 0, 0);
         heading.Controls.Add(MLabel(subtitle, 8.5f, false, MutedModern), 0, 1);
         card.Controls.Add(heading, 0, 0);
@@ -388,13 +399,13 @@ internal sealed partial class MainForm
     private static void AddModernField(TableLayoutPanel grid, string label, Control field)
     {
         int index = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         var caption = MLabel(label, 9.5f, false, InkModern);
         caption.Margin = Padding.Empty;
         grid.Controls.Add(caption, 0, index);
         field.AccessibleName = label;
         field.Dock = DockStyle.Fill;
-        field.Margin = new Padding(4, 7, 2, 7);
+        field.Margin = new Padding(4, 6, 2, 6);
         if (field is TextBox t) { t.Font = new Font("Segoe UI", 10); t.BorderStyle = BorderStyle.FixedSingle; }
         if (field is ComboBox cb) { cb.FlatStyle = FlatStyle.Flat; cb.Font = new Font("Segoe UI", 10); }
         if (field is NumericUpDown num) num.Font = new Font("Segoe UI", 10);
@@ -429,12 +440,13 @@ internal sealed partial class MainForm
     {
         Text = text, AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
         AutoEllipsis = true, ForeColor = color, BackColor = Color.Transparent,
+        Margin = new Padding(2, 2, 2, 2),
         Font = new Font("Microsoft JhengHei UI", size, bold ? FontStyle.Bold : FontStyle.Regular)
     };
 
     private static Button NavButton(string title) => new()
     {
-        Text = title, Width = 132, Height = 35, FlatStyle = FlatStyle.Flat,
+        Text = title, Width = 132, Height = 39, FlatStyle = FlatStyle.Flat,
         BackColor = Color.White, ForeColor = MutedModern, Cursor = Cursors.Hand,
         Margin = new Padding(0, 0, 7, 0), Font = new Font("Microsoft JhengHei UI", 10, FontStyle.Bold),
         FlatAppearance = { BorderSize = 0 }

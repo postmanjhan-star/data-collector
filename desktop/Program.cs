@@ -40,6 +40,11 @@ internal static class Program
         }
         catch (Exception ex)
         {
+            if (smokeTest && Environment.GetEnvironmentVariable("HF811_LAYOUT_TEST_OUTPUT") is { Length: > 0 } output)
+            {
+                Directory.CreateDirectory(output);
+                File.WriteAllText(Path.Combine(output, "selftest-error.txt"), ex.ToString());
+            }
             if (!smokeTest)
                 MessageBox.Show(ex.ToString(), "HF811 Collector 啟動失敗",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);

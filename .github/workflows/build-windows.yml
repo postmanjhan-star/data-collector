@@ -21,7 +21,16 @@ jobs:
         run: choco install innosetup --yes --no-progress
       - name: Build win-x64 (includes self-test)
         shell: pwsh
+        env:
+          HF811_LAYOUT_TEST_OUTPUT: ${{ runner.temp }}/hf811-layout
         run: .\build.ps1
+      - name: Upload WinForms layout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HF811Collector-layout-evidence
+          path: ${{ runner.temp }}/hf811-layout/
+          if-no-files-found: warn
       - name: Receiver API + Collector server-sync integration test
         shell: pwsh
         run: .\\tests\\receiver-e2e.ps1

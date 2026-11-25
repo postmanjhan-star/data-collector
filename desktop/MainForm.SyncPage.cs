@@ -73,13 +73,13 @@ internal sealed partial class MainForm
         var page = new Panel { Dock = DockStyle.Fill, BackColor = BackColor, AutoScroll = true };
         var root = new TableLayoutPanel
         {
-            Dock = DockStyle.Top, Height = 590, ColumnCount = 2, RowCount = 3
+            Dock = DockStyle.Top, Height = 770, ColumnCount = 2, RowCount = 3
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 482));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 638));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
 
         var settings = SettingsCard("伺服器連線設定", "HTTPS / MQTT（測試） · 失敗自動補傳");
         settings.Margin = new Padding(0, 0, 12, 7);
@@ -87,14 +87,16 @@ internal sealed partial class MainForm
         AddModernField(controls, "背景同步", _syncEnabled);
         AddModernField(controls, "傳輸方式", _transportChoice);
         AddModernField(controls, "Collector ID", _collectorId);
-        AddModernField(controls, "接收端 HTTPS / MQTT URL", _serverUrl);
+        AddModernField(controls, "接收端 URL", _serverUrl);
         AddModernField(controls, "API Key / MQTT 密碼", _serverKey);
-        var secretRow = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
-        secretRow.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-        secretRow.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-        secretRow.Controls.Add(_serverKeyState, 0, 0);
-        secretRow.Controls.Add(_showSecret, 0, 1);
-        AddModernField(controls, "憑證狀態", secretRow);
+        // Do not split a 49px field into two cramped rows. Each gets its own full-height field.
+        _serverKeyState.Name = "CredentialState";
+        _serverKeyState.TextAlign = ContentAlignment.MiddleLeft;
+        _showSecret.Name = "ShowSecret";
+        _showSecret.AutoSize = false;
+        _showSecret.TextAlign = ContentAlignment.MiddleLeft;
+        AddModernField(controls, "憑證狀態", _serverKeyState);
+        AddModernField(controls, "密碼顯示", _showSecret);
         _showSecret.CheckedChanged += (_, _) => _serverKey.UseSystemPasswordChar = !_showSecret.Checked;
         _transportChoice.SelectedIndexChanged += (_, _) => TransportChoiceChanged();
         _serverUrl.TextChanged += (_, _) => RefreshTransportHint();
@@ -107,11 +109,11 @@ internal sealed partial class MainForm
         var status = SettingsCard("同步狀態", "僅統計伺服器已確認的紀錄");
         status.Margin = new Padding(12, 0, 0, 7);
         var stateContent = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 6 };
-        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 128));
         stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
         stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
         stateContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var counters = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
         for (int i = 0; i < 3; i++) counters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
@@ -129,6 +131,9 @@ internal sealed partial class MainForm
         _syncNow.Dock = DockStyle.Fill;
         _syncNow.BackColor = BlueModern;
         _syncNow.ForeColor = Color.White;
+        _syncNow.EnabledChanged += (_, _) => { _syncNow.BackColor = _syncNow.Enabled ? BlueModern : Color.FromArgb(222, 230, 231); _syncNow.ForeColor = _syncNow.Enabled ? Color.White : MutedModern; };
+        _syncNow.BackColor = Color.FromArgb(222, 230, 231);
+        _syncNow.ForeColor = MutedModern;
         _syncNow.FlatStyle = FlatStyle.Flat;
         _syncNow.FlatAppearance.BorderSize = 0;
         _syncNow.Click += async (_, _) => await ManualSyncAsync();
@@ -142,9 +147,13 @@ internal sealed partial class MainForm
 
         var save = MButton("儲存同步設定", BlueModern);
         save.Click += (_, _) => SaveSettings();
+        save.Dock = DockStyle.Left;
+        save.Width = 190;
         root.Controls.Add(save, 0, 1);
+        _transportHint.Name = "TransportHelp";
         root.Controls.Add(_transportHint, 1, 1);
         var bottom = MLabel("首次啟用將補傳此 SQLite 的所有待上傳資料；MQTT 目前只支援 Shadow Mode，不扣料。\n離線資料會保留，只有 Soda 入庫回執才能標記已同步。", 9, false, Color.FromArgb(130, 83, 27));
+        bottom.Name = "SyncWarning";
         root.SetColumnSpan(bottom, 2);
         root.Controls.Add(bottom, 0, 2);
         page.Controls.Add(root);
