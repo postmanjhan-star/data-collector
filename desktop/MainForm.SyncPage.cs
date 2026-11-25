@@ -6,6 +6,12 @@ namespace HF811Collector.Desktop;
 
 internal sealed partial class MainForm
 {
+    private bool _manualSyncBusy;
+    private bool _receiverProbeBusy;
+    private bool _applyingSyncSettings;
+    private readonly ComboBox _transportChoice = Choice("HTTPS API", "MQTT TLS（測試）", "本機 MQTT（測試）", "本機 HTTP（測試）");
+    private readonly Label _transportHint = MLabel("", 9, false, MutedModern);
+    private readonly CheckBox _showSecret = new() { Text = "顯示輸入中的密碼", AutoSize = true };
     private readonly CheckBox _syncEnabled = new()
     {
         Text = "啟用背景批次同步", Checked = false, Dock = DockStyle.Fill,
@@ -67,21 +73,32 @@ internal sealed partial class MainForm
         var page = new Panel { Dock = DockStyle.Fill, BackColor = BackColor, AutoScroll = true };
         var root = new TableLayoutPanel
         {
-            Dock = DockStyle.Top, Height = 500, ColumnCount = 2, RowCount = 2
+            Dock = DockStyle.Top, Height = 590, ColumnCount = 2, RowCount = 3
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 442));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 482));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
 
         var settings = SettingsCard("伺服器連線設定", "HTTPS / MQTT（測試） · 失敗自動補傳");
         settings.Margin = new Padding(0, 0, 12, 7);
         var controls = SettingsGrid();
-        AddModernField(controls, "自動上傳", _syncEnabled);
+        AddModernField(controls, "背景同步", _syncEnabled);
+        AddModernField(controls, "傳輸方式", _transportChoice);
         AddModernField(controls, "Collector ID", _collectorId);
         AddModernField(controls, "接收端 HTTPS / MQTT URL", _serverUrl);
         AddModernField(controls, "API Key / MQTT 密碼", _serverKey);
-        AddModernField(controls, "憑證狀態", _serverKeyState);
+        var secretRow = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
+        secretRow.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        secretRow.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        secretRow.Controls.Add(_serverKeyState, 0, 0);
+        secretRow.Controls.Add(_showSecret, 0, 1);
+        AddModernField(controls, "憑證狀態", secretRow);
+        _showSecret.CheckedChanged += (_, _) => _serverKey.UseSystemPasswordChar = !_showSecret.Checked;
+        _transportChoice.SelectedIndexChanged += (_, _) => TransportChoiceChanged();
+        _serverUrl.TextChanged += (_, _) => RefreshTransportHint();
+        _collectorId.TextChanged += (_, _) => RefreshTransportHint();
         AddModernField(controls, "同步間隔（秒）", _syncInterval);
         AddModernField(controls, "每批最大筆數", _batchSize);
         settings.Controls.Add(controls, 0, 1);
@@ -123,9 +140,13 @@ internal sealed partial class MainForm
         status.Controls.Add(stateContent, 0, 1);
         root.Controls.Add(status, 1, 0);
 
-        var bottom = MLabel("首次啟用會補傳 SQLite 中全部既有紀錄，包括先前的模擬掃描資料。請先用測試接收端驗證。\n離線時先寫入 SQLite，只有收到伺服器 ACK 才標記已同步。", 9, false, Color.FromArgb(150, 96, 41));
+        var save = MButton("儲存同步設定", BlueModern);
+        save.Click += (_, _) => SaveSettings();
+        root.Controls.Add(save, 0, 1);
+        root.Controls.Add(_transportHint, 1, 1);
+        var bottom = MLabel("首次啟用將補傳此 SQLite 的所有待上傳資料；MQTT 目前只支援 Shadow Mode，不扣料。\n離線資料會保留，只有 Soda 入庫回執才能標記已同步。", 9, false, Color.FromArgb(130, 83, 27));
         root.SetColumnSpan(bottom, 2);
-        root.Controls.Add(bottom, 0, 1);
+        root.Controls.Add(bottom, 0, 2);
         page.Controls.Add(root);
         _syncEnabled.CheckedChanged += (_, _) => UpdateButtons();
         return page;
@@ -151,12 +172,17 @@ internal sealed partial class MainForm
 
     private void ApplySyncSettings(CollectorOptions cfg)
     {
+        _applyingSyncSettings = true;
         _syncEnabled.Checked = cfg.SyncEnabled;
         _collectorId.Text = cfg.CollectorId;
         _serverUrl.Text = cfg.ServerUrl;
         _syncInterval.Value = Math.Clamp(cfg.SyncIntervalSeconds, 1, 3600);
         _batchSize.Value = Math.Clamp(cfg.SyncBatchSize, 1, 100);
         _serverKey.Clear(); // Never expose persisted secrets as plain text in the UI.
+        _showSecret.Checked = false;
+        _transportChoice.SelectedIndex = cfg.ServerUrl.StartsWith("mqtts://", StringComparison.OrdinalIgnoreCase) ? 1 : cfg.ServerUrl.StartsWith("mqtt://", StringComparison.OrdinalIgnoreCase) ? 2 : cfg.ServerUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? 3 : 0;
+        _applyingSyncSettings = false;
+        RefreshTransportHint();
         RefreshSecretStatus();
     }
 
@@ -172,28 +198,34 @@ internal sealed partial class MainForm
         _syncPending.Text = state.Pending.ToString("N0");
         _syncSynced.Text = state.Synced.ToString("N0");
         _syncRejected.Text = state.Rejected.ToString("N0");
-        _syncLastSuccess.Text = "最近成功同步：" +
-            (state.LastSyncedAtUtc is null ? "—" : state.LastSyncedAtUtc);
+        _syncLastSuccess.Text = "最近入庫回執：" +
+            (DateTimeOffset.TryParse(state.LastSyncedAtUtc, out var when) ? when.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "—");
+        _overviewSyncDetail.Text = $"待上傳 {state.Pending:N0} / 已同步 {state.Synced:N0} / 拒收 {state.Rejected:N0}";
         if (_syncAgent is null || !_syncAgent.Enabled)
         {
+            _overviewSync.Text = "僅本機儲存"; _overviewSync.ForeColor = MutedModern;
             _syncStatusText.Text = "背景同步未啟用";
             _syncErrorText.Text = "";
         }
         else if (!string.IsNullOrEmpty(_syncAgent.LastError))
         {
+            _overviewSync.Text = "同步異常 / 保留待上傳"; _overviewSync.ForeColor = Warning;
             _syncStatusText.Text = "同步遇到錯誤，待上傳資料保留";
             _syncErrorText.Text = _syncAgent.LastError;
         }
         else
         {
-            _syncStatusText.Text = "背景同步已啟用";
+            _overviewSync.Text = _syncAgent.LastSuccessUtc is null ? "等待本次入庫回執" : "本次已收到入庫回執";
+            _overviewSync.ForeColor = _syncAgent.LastSuccessUtc is null ? MutedModern : Success;
+            _syncStatusText.Text = _overviewSync.Text;
             _syncErrorText.Text = "";
         }
     }
 
     private async Task ManualSyncAsync()
     {
-        if (_syncAgent is null || _collectorCts is null) return;
+        if (_syncAgent is null || _collectorCts is null || _manualSyncBusy) return;
+        _manualSyncBusy = true;
         _syncNow.Enabled = false;
         try
         {
@@ -203,11 +235,13 @@ internal sealed partial class MainForm
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { ReportError("手動同步失敗", ex); }
-        finally { UpdateButtons(); }
+        finally { _manualSyncBusy = false; UpdateButtons(); }
     }
 
     private async Task TestReceiverAsync()
     {
+        if (_receiverProbeBusy) return;
+        _receiverProbeBusy = true;
         try
         {
             var value = ReadForm();
@@ -238,5 +272,6 @@ internal sealed partial class MainForm
                 "Server Sync · 連線與認證測試", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex) { ReportError("無法連到伺服器", ex); }
+        finally { _receiverProbeBusy = false; }
     }
 }

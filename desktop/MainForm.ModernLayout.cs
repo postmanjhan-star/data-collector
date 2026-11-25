@@ -24,28 +24,28 @@ internal sealed partial class MainForm
     private Panel? _settingsPage;
     private Panel? _logsPage;
 
-    private static readonly Color InkModern = Color.FromArgb(27, 45, 69);
-    private static readonly Color MutedModern = Color.FromArgb(105, 123, 144);
-    private static readonly Color BlueModern = Color.FromArgb(47, 106, 229);
-    private static readonly Color BorderModern = Color.FromArgb(228, 233, 241);
+    private static readonly Color InkModern = Color.FromArgb(30, 43, 49);
+    private static readonly Color MutedModern = Color.FromArgb(74, 91, 98);
+    private static readonly Color BlueModern = Color.FromArgb(13, 105, 108);
+    private static readonly Color BorderModern = Color.FromArgb(211, 222, 223);
     private static readonly Color PanelModern = Color.White;
 
     private void BuildModernLayout()
     {
         AutoScaleMode = AutoScaleMode.Dpi;
-        MinimumSize = new Size(940, 660);
-        Size = new Size(1100, 770);
-        BackColor = Color.FromArgb(246, 248, 252);
+        MinimumSize = new Size(820, 600);
+        Size = new Size(1100, 740);
+        BackColor = Color.FromArgb(237, 242, 243);
 
         SuspendLayout();
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5,
-            BackColor = BackColor, Padding = new Padding(28, 17, 28, 14)
+            BackColor = BackColor, Padding = new Padding(18, 10, 18, 8)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 74));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         Controls.Add(root);
@@ -62,10 +62,10 @@ internal sealed partial class MainForm
         };
         header.Controls.Add(iconBox, 0, 0);
         var titles = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, Margin = Padding.Empty };
-        titles.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
-        titles.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        titles.Controls.Add(MLabel("HF811 Collector", 21, true, InkModern), 0, 0);
-        titles.Controls.Add(MLabel("產線設備連線  /  條碼資料收集與診斷", 9.5f, false, MutedModern), 0, 1);
+        titles.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        titles.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
+        titles.Controls.Add(MLabel("SMT Data Collector", 20, true, InkModern), 0, 0);
+        titles.Controls.Add(MLabel("HF811 原始掃描採集 / SQLite / HTTP 或 MQTT", 9.5f, false, MutedModern), 0, 1);
         header.Controls.Add(titles, 1, 0);
         _status.AutoSize = false;
         _status.Dock = DockStyle.Fill;
@@ -75,14 +75,14 @@ internal sealed partial class MainForm
         root.Controls.Add(header, 0, 0);
 
         var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, Margin = new Padding(0, 4, 0, 9) };
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 184));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 184));
-        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 174));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 144));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         PrepareAction(_start, "▶  啟動收集", BlueModern);
         PrepareAction(_stop, "■  停止", Color.FromArgb(110, 128, 152));
-        PrepareAction(_simulate, "◉  模擬掃描", Color.FromArgb(21, 142, 142));
+        PrepareAction(_simulate, "模擬掃描", Color.White, InkModern);
         PrepareAction(_discover, "⌕  搜尋掃描器", Color.White, BlueModern);
         _start.Click += (_, _) => StartCollector();
         _stop.Click += async (_, _) => await StopCollectorAsync();
@@ -92,6 +92,10 @@ internal sealed partial class MainForm
         actions.Controls.Add(_stop, 1, 0);
         actions.Controls.Add(_simulate, 2, 0);
         actions.Controls.Add(_discover, 3, 0);
+        var quickTest = MButton("準備離線測試", BlueModern, true);
+        quickTest.AccessibleName = "準備獨立離線測試";
+        quickTest.Click += (_, _) => PrepareOfflineTest();
+        actions.Controls.Add(quickTest, 4, 0);
         root.Controls.Add(actions, 0, 1);
 
         var nav = new FlowLayoutPanel
@@ -127,31 +131,32 @@ internal sealed partial class MainForm
 
     private Panel BuildOverview()
     {
-        var page = new Panel { Dock = DockStyle.Fill, BackColor = BackColor };
-        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 122));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 140));
+        var page = new Panel { Dock = DockStyle.Fill, BackColor = BackColor, AutoScroll = true };
+        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, MinimumSize = new Size(0, 390), ColumnCount = 1, RowCount = 3 };
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         page.Controls.Add(grid);
 
         var connectionCard = MCard();
         connectionCard.Margin = new Padding(0, 0, 0, 12);
         var connection = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3 };
-        connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
-        connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+        connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+        connection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
         connection.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
         connection.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         connection.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        connection.Controls.Add(MLabel("目前設備連線", 10, true, InkModern), 0, 0);
+        connection.Controls.Add(MLabel("掃描器端點", 10, true, InkModern), 0, 0);
+        connection.Controls.Add(MLabel("資料同步 / 伺服器回執", 10, true, InkModern), 1, 0);
+        connection.Controls.Add(_overviewSync, 1, 1);
+        connection.Controls.Add(_overviewSyncDetail, 1, 2);
         _connectionLine.Font = new Font("Segoe UI", 15.5f, FontStyle.Bold);
         _connectionLine.TextAlign = ContentAlignment.MiddleLeft;
         connection.Controls.Add(_connectionLine, 0, 1);
         _networkNote.Font = new Font("Microsoft JhengHei UI", 9f);
         _networkNote.TextAlign = ContentAlignment.MiddleLeft;
         connection.Controls.Add(_networkNote, 0, 2);
-        var link = MLink("搜尋網路設備  →");
-        link.Click += (_, _) => ShowDiscovery();
-        connection.Controls.Add(link, 1, 1);
+
         connectionCard.Controls.Add(connection);
         grid.Controls.Add(connectionCard, 0, 0);
 
@@ -170,8 +175,8 @@ internal sealed partial class MainForm
         latest.Margin = new Padding(0, 8, 10, 0);
         var latestContent = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4 };
         latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-        latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
-        latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
+        latestContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         latestContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         latestContent.Controls.Add(MLabel("最新條碼", 12, true, InkModern), 0, 0);
         _lastCode.AutoSize = false;
@@ -180,7 +185,7 @@ internal sealed partial class MainForm
         _lastCode.AutoEllipsis = true;
         _lastCode.TextAlign = ContentAlignment.MiddleLeft;
         latestContent.Controls.Add(_lastCode, 0, 1);
-        latestContent.Controls.Add(MLabel("資料保存在 SQLite，可從資料夾查閱完整紀錄。", 9.5f, false, MutedModern), 0, 2);
+        latestContent.Controls.Add(MLabel("此為原始掃描紀錄，不代表完成過站或扣料。", 9.5f, false, MutedModern), 0, 2);
         var folder = MLink("開啟資料與日誌資料夾  →");
         folder.Click += (_, _) => OpenDataFolder();
         latestContent.Controls.Add(folder, 0, 3);
@@ -241,7 +246,15 @@ internal sealed partial class MainForm
         AddModernField(rightGrid, "Idle Gap (ms)", _idleGap);
         AddModernField(rightGrid, "NOREAD 值", _noRead);
         AddModernField(rightGrid, "本機 API Port", _apiPort);
-        AddModernField(rightGrid, "SQLite 路徑", _dbPath);
+        var pathRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        pathRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
+        _dbPath.Dock = DockStyle.Fill;
+        pathRow.Controls.Add(_dbPath, 0, 0);
+        var browse = MButton("瀏覽", BlueModern, true);
+        browse.Click += (_, _) => BrowseDatabase();
+        pathRow.Controls.Add(browse, 1, 0);
+        AddModernField(rightGrid, "SQLite 路徑", pathRow);
         right.Controls.Add(rightGrid, 0, 1);
         content.Controls.Add(right, 1, 0);
 
@@ -266,10 +279,11 @@ internal sealed partial class MainForm
         var grid = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
         grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var head = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+        var head = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
         head.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         head.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 135));
         head.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        head.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102));
         head.Controls.Add(MLabel("運作日誌   ·   畫面保留最近 160 行", 12, true, InkModern), 0, 0);
         var clear = MLink("清除畫面");
         clear.Click += (_, _) => { _logs.Clear(); _overviewLog.Clear(); };
@@ -277,6 +291,9 @@ internal sealed partial class MainForm
         var folder = MLink("開啟日誌資料夾 →");
         folder.Click += (_, _) => OpenDataFolder();
         head.Controls.Add(folder, 2, 0);
+        var copy = MLink("複製日誌");
+        copy.Click += (_, _) => CopyDiagnosticLog();
+        head.Controls.Add(copy, 3, 0);
         grid.Controls.Add(head, 0, 0);
         _logs.BackColor = PanelModern;
         _logs.Dock = DockStyle.Fill;
@@ -294,9 +311,10 @@ internal sealed partial class MainForm
         _syncPage.Visible = page == 3;
         foreach (var (button, index) in new[] { (_overviewTab, 0), (_settingsTab, 1), (_logsTab, 2), (_syncTab, 3) })
         {
-            button.BackColor = page == index ? Color.White : BackColor;
-            button.ForeColor = page == index ? BlueModern : MutedModern;
-            button.Font = new Font("Microsoft JhengHei UI", 10, page == index ? FontStyle.Bold : FontStyle.Regular);
+            button.BackColor = page == index ? BlueModern : BackColor;
+            button.ForeColor = page == index ? Color.White : MutedModern;
+            button.FlatAppearance.BorderSize = page == index ? 0 : 1;
+            button.FlatAppearance.BorderColor = BorderModern;
         }
         if (page == 0) _overviewPage.BringToFront();
         if (page == 1) _settingsPage.BringToFront();
@@ -309,8 +327,8 @@ internal sealed partial class MainForm
     {
         _connectionLine.Text = $"{_host.Text.Trim()}  :  {_port.Value}";
         _networkNote.Text = _mode.SelectedItem?.ToString() == "listen"
-            ? "TCP Client 模式 · Collector 在本機監聽，等待掃描器主動連入"
-            : "TCP Server 模式 · Collector 主動連線至掃描器";
+            ? "listen：本機監聽，等待掃描器連入"
+            : "connect：Collector 主動連線至掃描器";
     }
 
     private void ShowDiscovery()
@@ -344,8 +362,8 @@ internal sealed partial class MainForm
         {
             Dock = DockStyle.Fill, ColumnCount = 2, AutoScroll = true, Margin = Padding.Empty
         };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 37));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 63));
         return grid;
     }
 
@@ -353,7 +371,7 @@ internal sealed partial class MainForm
     {
         var card = new TableLayoutPanel
         {
-            BackColor = Color.White, Dock = DockStyle.Fill, Padding = new Padding(22, 17, 22, 15),
+            BackColor = Color.White, Dock = DockStyle.Fill, Padding = new Padding(16, 12, 16, 12),
             ColumnCount = 1, RowCount = 2, CellBorderStyle = TableLayoutPanelCellBorderStyle.None
         };
         card.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
@@ -374,6 +392,7 @@ internal sealed partial class MainForm
         var caption = MLabel(label, 9.5f, false, InkModern);
         caption.Margin = Padding.Empty;
         grid.Controls.Add(caption, 0, index);
+        field.AccessibleName = label;
         field.Dock = DockStyle.Fill;
         field.Margin = new Padding(4, 7, 2, 7);
         if (field is TextBox t) { t.Font = new Font("Segoe UI", 10); t.BorderStyle = BorderStyle.FixedSingle; }
@@ -415,9 +434,10 @@ internal sealed partial class MainForm
 
     private static Button NavButton(string title) => new()
     {
-        Text = title, Width = 142, Height = 42, FlatStyle = FlatStyle.Flat,
+        Text = title, Width = 132, Height = 35, FlatStyle = FlatStyle.Flat,
         BackColor = Color.White, ForeColor = MutedModern, Cursor = Cursors.Hand,
-        Margin = new Padding(0, 0, 7, 0), FlatAppearance = { BorderSize = 0 }
+        Margin = new Padding(0, 0, 7, 0), Font = new Font("Microsoft JhengHei UI", 10, FontStyle.Bold),
+        FlatAppearance = { BorderSize = 0 }
     };
 
     private static Button MLink(string title) => new()

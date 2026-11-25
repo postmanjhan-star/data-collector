@@ -10,7 +10,7 @@ internal sealed partial class MainForm : Form
     private static readonly Color BackgroundColor = Color.FromArgb(244, 247, 251);
     private static readonly Color Ink = Color.FromArgb(31, 48, 72);
     private static readonly Color Muted = Color.FromArgb(103, 122, 143);
-    private static readonly Color Accent = Color.FromArgb(39, 112, 230);
+    private static readonly Color Accent = Color.FromArgb(13, 105, 108);
     private static readonly Color Success = Color.FromArgb(23, 147, 115);
     private static readonly Color Warning = Color.FromArgb(179, 107, 22);
 
@@ -66,7 +66,7 @@ internal sealed partial class MainForm : Form
     public MainForm(bool startHidden)
     {
         _startHidden = startHidden;
-        Text = "HF811 Collector · 產線條碼接收";
+        Text = "SMT Data Collector | 產線資料採集";
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(830, 660);
         Size = new Size(1030, 750);
@@ -254,6 +254,7 @@ internal sealed partial class MainForm : Form
         _idleGap.Value = Math.Clamp(cfg.IdleGapMs, 1, 600000);
         ApplySyncSettings(cfg);
         UpdateConnectionLine();
+        RefreshTransportHint();
     }
 
     private CollectorOptions ReadForm() => new()
@@ -408,6 +409,8 @@ internal sealed partial class MainForm : Form
     private async Task ToggleSimulatorAsync()
     {
         if (_simulatorCts != null) { await StopSimulatorAsync(); return; }
+        if (_collectorCts != null) return;
+        if (_syncEnabled.Checked && MessageBox.Show(this, "模擬資料會送至設定的伺服器。只允許對隔離測試環境執行。確定繼續？", "模擬上傳確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         if (_host.Text.Trim() != "127.0.0.1" || _mode.SelectedItem?.ToString() != "connect")
         {
             MessageBox.Show("本機模擬掃描器使用 127.0.0.1。\n請先將連線模式設為 connect、Host 設為 127.0.0.1，再儲存設定。",
@@ -532,8 +535,12 @@ internal sealed partial class MainForm : Form
         bool started = _collectorCts != null;
         _start.Enabled = !started && !_stopping;
         _stop.Enabled = started && !_stopping;
-        _simulate.Text = _simulatorCts == null ? "◉  開始模擬掃描" : "■  停止模擬";
-        _syncNow.Enabled = started && !_stopping && _syncEnabled.Checked;
+        _simulate.Text = _simulatorCts == null ? "模擬掃描" : "停止模擬";
+        _simulate.Enabled = !_stopping && (!started || _simulatorCts != null);
+        _discover.Enabled = !started && _simulatorCts == null && !_stopping;
+        _syncNow.Enabled = started && !_stopping && _syncAgent?.Enabled == true && !_manualSyncBusy;
+        SetConfigurationEditable(!started && !_stopping && _simulatorCts == null);
+        if (!started) { _overviewSync.Text = "尚未啟動"; _overviewSyncDetail.Text = "啟動後顯示 SQLite 與伺服器回執"; _syncStatusText.Text = "Collector 尚未啟動"; _syncErrorText.Text = ""; }
     }
 
     private void RestoreWindow()

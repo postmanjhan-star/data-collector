@@ -2,7 +2,7 @@ name: Build HF811 Windows 10 x64 Installer
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feat/smt-mqtt-shadow]
     paths: ['src/**', 'server/**', 'desktop/**', 'installer/**', 'build.ps1', 'tests/**', '.github/workflows/build-windows.yml']
 
 jobs:
