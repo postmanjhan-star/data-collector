@@ -11,6 +11,16 @@ internal sealed partial class MainForm
     private void RefreshTransportHint()
     {
         string url = _serverUrl.Text.Trim();
+        if (!_applyingSyncSettings)
+        {
+            int scheme = url.StartsWith("mqtts://", StringComparison.OrdinalIgnoreCase) ? 1 : url.StartsWith("mqtt://", StringComparison.OrdinalIgnoreCase) ? 2 : url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? 3 : url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? 0 : -1;
+            if (scheme >= 0 && _transportChoice.SelectedIndex != scheme)
+            {
+                _applyingSyncSettings = true;
+                _transportChoice.SelectedIndex = scheme;
+                _applyingSyncSettings = false;
+            }
+        }
         bool mqtt = url.StartsWith("mqtts://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("mqtt://", StringComparison.OrdinalIgnoreCase);
         _transportHint.Text = mqtt
             ? $"MQTT 帳號 = Collector ID；{_collectorId.Text.Trim()}；僅 smt/test/v1"
@@ -71,6 +81,31 @@ internal sealed partial class MainForm
         RefreshTransportHint();
         SwitchPage(1);
         AppendLog("已準備離線模擬表單；請確認設定，再開始模擬掃描及啟動收集。");
+    }
+
+    internal static void RunLayoutSelfTest()
+    {
+        using var form = new MainForm(false, layoutTest: true);
+        try
+        {
+            form.Size = new Size(1024, 640);
+            form.PerformLayout();
+            form.SwitchPage(3);
+            form._transportChoice.SelectedIndex = 2;
+            if (form._serverUrl.Text != "mqtt://127.0.0.1:1883") throw new InvalidOperationException("MQTT preset failed");
+            form._serverUrl.Text = "mqtts://broker.example:8883";
+            if (form._transportChoice.SelectedIndex != 1) throw new InvalidOperationException("Pasted transport did not update selection");
+            form._showSecret.Checked = true;
+            if (form._serverKey.UseSystemPasswordChar) throw new InvalidOperationException("Password visibility toggle failed");
+            form._showSecret.Checked = false;
+            if (!form._serverKey.UseSystemPasswordChar) throw new InvalidOperationException("Password masking failed");
+            form.SetConfigurationEditable(false);
+            if (form._host.Enabled || form._serverUrl.Enabled || form._transportChoice.Enabled) throw new InvalidOperationException("Settings lock failed");
+            form.SetConfigurationEditable(true);
+            if (!form._host.Enabled || !form._serverUrl.Enabled) throw new InvalidOperationException("Settings unlock failed");
+            foreach (int page in new[] { 0, 1, 2, 3 }) form.SwitchPage(page);
+        }
+        finally { form._timer.Dispose(); form._tray.Dispose(); }
     }
 
     private void CopyDiagnosticLog()

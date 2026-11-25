@@ -63,7 +63,7 @@ internal sealed partial class MainForm : Form
     private bool _hintShown;
     private int _apiRunningPort = 8088;
 
-    public MainForm(bool startHidden)
+    public MainForm(bool startHidden, bool layoutTest = false)
     {
         _startHidden = startHidden;
         Text = "SMT Data Collector | 產線資料採集";
@@ -75,6 +75,15 @@ internal sealed partial class MainForm : Form
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
 
         BuildLayout();
+        if (layoutTest)
+        {
+            // No real user config, log files, background workers or visible tray icon.
+            _tray = new NotifyIcon();
+            _timer = new System.Windows.Forms.Timer();
+            Apply(new CollectorOptions());
+            UpdateButtons();
+            return;
+        }
         TryLoadSettings();
 
         var menu = new ContextMenuStrip();

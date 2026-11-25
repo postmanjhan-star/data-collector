@@ -20,6 +20,7 @@ internal static class Program
                     ?? throw new InvalidDataException("Invalid configuration template");
                 settings.Validate();
                 DiscoverySelfTest.Run();
+                MainForm.RunLayoutSelfTest();
                 using var icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
                 if (icon is null) throw new InvalidOperationException("Desktop icon not embedded");
                 return 0;
