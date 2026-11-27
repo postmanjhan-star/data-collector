@@ -552,6 +552,7 @@ public static class SelfTest
                     throw new Exception("SQLite / dedup / no-read test failed");
             }
             ScannerProfilesSelfTest.RunAsync().GetAwaiter().GetResult();
+            IndustrialDiagnostics.SelfTestAsync().GetAwaiter().GetResult();
             SyncSelfTest.Run();
             Console.WriteLine("SELFTEST PASS: TCP framing, SQLite, duplicate marking and NOREAD.");
             return 0;
@@ -617,7 +618,7 @@ public static class Program
             Console.WriteLine("""
                 HF811 Collector Lab (C#)
                   HF811Collector.exe collector --config "C:\path\config.json"
-                  HF811Collector.exe init-config
+                  HF811Collector.exe plc-read --host IP --unit ID --function 3|4 --address OFFSET --count N [--port 502]\n                  HF811Collector.exe group-preview --separator HEX --members ID1,ID2 --frame HEX\n                  HF811Collector.exe init-config
                   HF811Collector.exe edit-config
                   HF811Collector.exe open-data
                   HF811Collector.exe simulator [--mode server|client] [--host 127.0.0.1]
@@ -632,6 +633,8 @@ public static class Program
         try
         {
             if (args[0] == "selftest") return SelfTest.Run();
+            if (args[0] == "plc-read") return await IndustrialDiagnostics.ReadCommandAsync(args, stop.Token);
+            if (args[0] == "group-preview") return IndustrialDiagnostics.GroupCommand(args);
             if (args[0] == "mqtt-e2e") return await MqttIntegrationTest.RunAsync(args, stop.Token);
             if (args[0] == "sync-e2e") return await SyncIntegrationTest.RunAsync(args, stop.Token);
             if (args[0] == "init-config")
