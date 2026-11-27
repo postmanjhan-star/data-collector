@@ -247,6 +247,8 @@ internal sealed partial class MainForm
         var discover = MButton("搜尋區網中的 TCP 裝置", BlueModern, true);
         discover.Click += (_, _) => ShowDiscovery();
         AddModernField(leftGrid, "自動尋找 IP", discover);
+        _editScannerProfiles.Click += (_, _) => EditScannerProfiles();
+        AddModernField(leftGrid, "多掃描器 / 串列", _editScannerProfiles);
         left.Controls.Add(leftGrid, 0, 1);
         content.Controls.Add(left, 0, 0);
 
@@ -338,6 +340,12 @@ internal sealed partial class MainForm
 
     private void UpdateConnectionLine()
     {
+        if (_scannerProfiles.Count > 0)
+        {
+            _connectionLine.Text = $"{_scannerProfiles.Count} 台獨立掃描器";
+            _networkNote.Text = "多設備採集 · 依設備代號分流，詳見運作日誌";
+            return;
+        }
         _connectionLine.Text = $"{_host.Text.Trim()}  :  {_port.Value}";
         _networkNote.Text = _mode.SelectedItem?.ToString() == "listen"
             ? "listen：本機監聽，等待掃描器連入"

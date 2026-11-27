@@ -11,3 +11,5 @@ Operator screenshots exposed clipped header subtitle, overview details and show-
 
 ## 1.6.2 counter clipping
 Overview and sync counters now use preferred-height rows with explicit vertical headroom. The layout self-test checks counter height and sibling overlap at 150% font size in addition to current runner DPI. Verify on the target Windows display as well.
+
+Multi-scanner profile editor: see [SCANNER_PROFILES.md](SCANNER_PROFILES.md). Existing MQTT event schema remains unchanged.

@@ -71,6 +71,7 @@ public static class AppLog
 
 public sealed class Settings
 {
+    public List<ScannerProfile> ScannerProfiles { get; set; } = new();
     public string Mode { get; set; } = "connect";
     public string Host { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 55256;
@@ -103,6 +104,7 @@ public sealed class Settings
             throw new ArgumentException("Mode must be connect or listen");
         if (string.IsNullOrWhiteSpace(cfg.DeviceId))
             throw new ArgumentException("DeviceId is required");
+        ScannerProfile.ValidateAll(cfg.ScannerProfiles, cfg.ApiPort);
         ServerSyncSettings.Validate(cfg.SyncEnabled, cfg.CollectorId, cfg.ServerUrl,
             cfg.SyncIntervalSeconds, cfg.SyncBatchSize);
         if (string.IsNullOrWhiteSpace(cfg.DatabasePath))
@@ -278,6 +280,11 @@ public static class CollectorRunner
 {
     public static async Task RunAsync(Settings cfg, ScanStore store, CancellationToken token)
     {
+        if (cfg.ScannerProfiles.Count > 0)
+        {
+            await ScannerProfilesRunner.RunAsync(cfg, store, token);
+            return;
+        }
         if (cfg.Framing == "idle")
             AppLog.WriteLine("WARNING: idle framing is heuristic; configure LF/CRLF suffix before production use.");
         if (cfg.Mode == "listen")
@@ -325,7 +332,7 @@ public static class CollectorRunner
             }
         }
     }
-    static async Task ReadAsync(NetworkStream stream, Settings cfg, ScanStore store, string source, CancellationToken token)
+    internal static async Task ReadAsync(NetworkStream stream, Settings cfg, ScanStore store, string source, CancellationToken token)
     {
         var buffer = new byte[2048];
         if (cfg.Framing == "idle")
@@ -538,6 +545,7 @@ public static class SelfTest
                     || root.GetProperty("duplicates").GetInt64() != 1 || root.GetProperty("no_reads").GetInt64() != 1)
                     throw new Exception("SQLite / dedup / no-read test failed");
             }
+            ScannerProfilesSelfTest.RunAsync().GetAwaiter().GetResult();
             SyncSelfTest.Run();
             Console.WriteLine("SELFTEST PASS: TCP framing, SQLite, duplicate marking and NOREAD.");
             return 0;

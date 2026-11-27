@@ -250,6 +250,8 @@ internal sealed partial class MainForm : Form
 
     private void Apply(CollectorOptions cfg)
     {
+        _scannerProfiles = cfg.ScannerProfiles.ToList();
+        RefreshScannerProfiles();
         _mode.SelectedItem = cfg.Mode;
         _framing.SelectedItem = cfg.Framing;
         _host.Text = cfg.Host;
@@ -268,6 +270,7 @@ internal sealed partial class MainForm : Form
 
     private CollectorOptions ReadForm() => new()
     {
+        ScannerProfiles = _scannerProfiles.ToList(),
         Mode = _mode.SelectedItem?.ToString() ?? "connect",
         Host = _host.Text.Trim(),
         Port = (int)_port.Value,
@@ -419,6 +422,11 @@ internal sealed partial class MainForm : Form
     {
         if (_simulatorCts != null) { await StopSimulatorAsync(); return; }
         if (_collectorCts != null) return;
+        if (_scannerProfiles.Count > 0)
+        {
+            MessageBox.Show(this, "單機模擬不會連線到實體設備。請先使用準備離線測試，或清空掃描器清單。");
+            return;
+        }
         if (_syncEnabled.Checked && MessageBox.Show(this, "模擬資料會送至設定的伺服器。只允許對隔離測試環境執行。確定繼續？", "模擬上傳確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         if (_host.Text.Trim() != "127.0.0.1" || _mode.SelectedItem?.ToString() != "connect")
         {
@@ -492,6 +500,12 @@ internal sealed partial class MainForm : Form
         SafeUi(() =>
         {
             AppendLog(message);
+            if (_scannerProfiles.Count > 0)
+            {
+                // Per-device connection messages remain in the log; one disconnected device must not claim all are disconnected.
+                if (_collectorCts != null && !_stopping) SetStatus("採集執行中", Success);
+                return;
+            }
             if (message.Contains("Scanner connected", StringComparison.Ordinal))
                 SetStatus("已連線", Success);
             else if (message.Contains("Connecting to", StringComparison.Ordinal) ||

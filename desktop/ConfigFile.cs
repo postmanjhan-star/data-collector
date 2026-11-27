@@ -4,6 +4,7 @@ namespace HF811Collector.Desktop;
 
 internal sealed class CollectorOptions
 {
+    public List<HF811Collector.ScannerProfile> ScannerProfiles { get; set; } = new();
     public string Mode { get; set; } = "connect";
     public string Host { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 55256;
@@ -33,12 +34,14 @@ internal sealed class CollectorOptions
             throw new ArgumentException("逾時及去重設定必須為有效的正整數");
         if (string.IsNullOrWhiteSpace(DeviceId)) throw new ArgumentException("請輸入設備代號");
         if (string.IsNullOrWhiteSpace(NoReadValue)) throw new ArgumentException("請輸入 NOREAD 代表值");
+        HF811Collector.ScannerProfile.ValidateAll(ScannerProfiles, ApiPort);
         HF811Collector.ServerSyncSettings.Validate(SyncEnabled, CollectorId, ServerUrl,
             SyncIntervalSeconds, SyncBatchSize);
     }
 
     public HF811Collector.Settings ToCore() => new()
     {
+        ScannerProfiles = ScannerProfiles,
         Mode = Mode,
         Host = Host,
         Port = Port,
