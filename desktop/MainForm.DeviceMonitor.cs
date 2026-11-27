@@ -17,6 +17,7 @@ internal sealed partial class MainForm
             grid.Columns.Add(column, column);
         void Refresh()
         {
+            string? selected = grid.CurrentRow?.Cells[0].Value?.ToString();
             grid.Rows.Clear();
             var rows = _store?.DeviceSnapshots();
             if (rows != null)
@@ -28,10 +29,35 @@ internal sealed partial class MainForm
             else
                 foreach (var id in _scannerProfiles.Count > 0 ? _scannerProfiles.Select(s => s.DeviceId) : new[] { _device.Text })
                     grid.Rows.Add(id, "未啟動", "—", "—", "—", "—", "—");
+            if (selected != null)
+                foreach (DataGridViewRow row in grid.Rows)
+                    if (row.Cells[0].Value?.ToString() == selected) { grid.CurrentCell = row.Cells[0]; break; }
         }
         using var timer = new System.Windows.Forms.Timer { Interval = 1000 };
         timer.Tick += (_, _) => Refresh();
-        dialog.Controls.Add(grid);
+        var commands = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 58, Padding = new Padding(8), AutoScroll = true, WrapContents = false };
+        async Task Send(bool on)
+        {
+            string? id = grid.CurrentRow?.Cells[0].Value?.ToString();
+            if (id == null || _store == null || _collectorCts == null) return;
+            if (!_store.CanTrigger(id, on)) { MessageBox.Show(dialog, "此設備未連線或未設定對應 Trigger HEX。"); return; }
+            timer.Stop();
+            commands.Enabled = false;
+            try
+            {
+                if (MessageBox.Show(dialog, $"向 {id} 發送已設定的 {(on ? "ON" : "OFF")} 指令？請確認設備已切換至可安全操作的測試狀態。", "確認手動觸發", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                await _store.TriggerAsync(id, on, _collectorCts.Token);
+                AppendLog($"手動 Trigger {(on ? "ON" : "OFF")} 已送出至 {id}（不代表掃描成功）。");
+            }
+            catch (Exception ex) { MessageBox.Show(dialog, ex.Message, "Trigger 未完成"); }
+            finally { commands.Enabled = true; if (!dialog.IsDisposed) timer.Start(); }
+        }
+        var on = new Button { Text = "手動 Trigger ON", AutoSize = true };
+        var off = new Button { Text = "手動 Trigger OFF", AutoSize = true };
+        on.Click += async (_, _) => await Send(true);
+        off.Click += async (_, _) => await Send(false);
+        commands.Controls.AddRange(new Control[] { on, off });
+        dialog.Controls.Add(grid); dialog.Controls.Add(commands);
         Refresh(); timer.Start(); dialog.ShowDialog(this); timer.Stop();
     }
 

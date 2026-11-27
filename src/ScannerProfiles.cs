@@ -16,6 +16,8 @@ public sealed class ScannerProfile
     public string Framing { get; set; } = "lf";
     public int IdleGapMs { get; set; } = 100;
     public int ReconnectMs { get; set; } = 1000;
+    public string TriggerOnHex { get; set; } = "";
+    public string TriggerOffHex { get; set; } = "";
     public int BaudRate { get; set; } = 115200;
     public int DataBits { get; set; } = 8;
     public Parity Parity { get; set; } = Parity.None;
@@ -35,6 +37,10 @@ public sealed class ScannerProfile
             if (string.IsNullOrWhiteSpace(s.Host) || s.Framing is not ("lf" or "cr" or "crlf" or "idle") ||
                 s.IdleGapMs is < 1 or > 600000 || s.ReconnectMs is < 100 or > 600000)
                 throw new ArgumentException("Invalid scanner endpoint/framing/timeouts: " + s.DeviceId);
+            TriggerCommand.Parse(s.TriggerOnHex);
+            TriggerCommand.Parse(s.TriggerOffHex);
+            if (s.Transport == "serial" && (!string.IsNullOrWhiteSpace(s.TriggerOnHex) || !string.IsNullOrWhiteSpace(s.TriggerOffHex)))
+                throw new ArgumentException("Software trigger currently supports only TCP profiles");
             switch (s.Transport)
             {
                 case "tcp-connect":
@@ -63,7 +69,8 @@ public sealed class ScannerProfile
     {
         Mode = Transport == "tcp-listen" ? "listen" : "connect",
         Host = Host.Trim(), Port = Port, DeviceId = DeviceId.Trim(),
-        Framing = Framing, IdleGapMs = IdleGapMs, ReconnectMs = ReconnectMs
+        Framing = Framing, IdleGapMs = IdleGapMs, ReconnectMs = ReconnectMs,
+        TriggerOnHex = TriggerOnHex, TriggerOffHex = TriggerOffHex
     };
 }
 
@@ -114,6 +121,7 @@ public static class ScannerProfilesRunner
                     AppLog.WriteLine($"[Scanner {endpoint.DeviceId}] Unexpected peer rejected");
                     continue;
                 }
+                using var trigger = store.RegisterTrigger(endpoint.DeviceId, client.GetStream(), endpoint.TriggerOnHex, endpoint.TriggerOffHex, token);
                 store.SetDeviceState(endpoint.DeviceId, "connected");
                 AppLog.WriteLine($"[Scanner {endpoint.DeviceId}] Connected: {peer}");
                 try { await CollectorRunner.ReadAsync(client.GetStream(), endpoint, store, peer?.ToString() ?? "unknown", token); }

@@ -53,6 +53,8 @@ internal sealed partial class MainForm
         ChoiceColumn(nameof(ScannerProfile.Framing), "分隔", new object[] { "lf", "crlf", "cr", "idle" }, 90);
         TextColumn(nameof(ScannerProfile.IdleGapMs), "Idle ms", 90);
         TextColumn(nameof(ScannerProfile.ReconnectMs), "重連 ms", 90);
+        TextColumn(nameof(ScannerProfile.TriggerOnHex), "Trigger ON HEX（選填）", 180);
+        TextColumn(nameof(ScannerProfile.TriggerOffHex), "Trigger OFF HEX（選填）", 180);
         TextColumn(nameof(ScannerProfile.BaudRate), "Baud", 90);
         TextColumn(nameof(ScannerProfile.DataBits), "Data bits", 90);
         ChoiceColumn(nameof(ScannerProfile.Parity), "Parity", Enum.GetValues<System.IO.Ports.Parity>().Cast<object>().ToArray(), 100);

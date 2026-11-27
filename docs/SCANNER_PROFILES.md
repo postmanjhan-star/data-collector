@@ -12,3 +12,6 @@ Legacy config with empty ScannerProfiles retains original single TCP behavior. I
 
 ## v1.6.3
 Device monitor opens from overview and reads lifetime raw-scan counters per device from the local SQLite database. Multi-profile connection states are updated directly by the transport. Offline preparation offers single or dual local simulator. MQTT SyncAgent reuses its session for nonempty batches, reconnects/resubscribes on failure; SQLite remains authoritative. This is not a durable MQTT broker session (clean session is intentional).
+
+## Manual software trigger
+TCP profiles may configure TriggerOnHex and TriggerOffHex (1–128 exact bytes, including the configured suffix if required). Blank disables the action. Use the monitor's explicit ON/OFF commands only on an approved test device. No default hardware command, no automated trigger or retry; a send does not prove a scan. Honeywell support article 000097831 describes a customized trigger string, with TRIGGER as an example, not a universal device setting. This adapter assumes the configured data TCP socket also accepts trigger commands; dedicated control sockets and serial trigger require separate verification.

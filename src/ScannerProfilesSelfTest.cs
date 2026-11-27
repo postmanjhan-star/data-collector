@@ -25,7 +25,7 @@ internal static class ScannerProfilesSelfTest
             {
                 ScannerProfiles = new()
                 {
-                    new() { DeviceId = "SC2-UPPER", Port = upperPort, Framing = "crlf" },
+                    new() { DeviceId = "SC2-UPPER", Port = upperPort, Framing = "crlf", TriggerOnHex = "54524947474552" },
                     new() { DeviceId = "SC2-LOWER", Transport = "tcp-listen", Port = lowerPort, ExpectedPeerIp = "127.0.0.1" }
                 }
             };
@@ -40,6 +40,12 @@ internal static class ScannerProfilesSelfTest
                     try { await lower.ConnectAsync(IPAddress.Loopback, lowerPort, stop.Token); break; }
                     catch (SocketException) { await Task.Delay(50, stop.Token); }
                 }
+                while (!store.CanTrigger("SC2-UPPER", true)) await Task.Delay(20, stop.Token);
+                if (store.CanTrigger("SC2-LOWER", true)) throw new InvalidOperationException("Unconfigured trigger enabled");
+                await store.TriggerAsync("SC2-UPPER", true, stop.Token);
+                byte[] triggerBytes = new byte[7];
+                await upperConnection.GetStream().ReadExactlyAsync(triggerBytes, stop.Token);
+                if (Encoding.ASCII.GetString(triggerBytes) != "TRIGGER") throw new InvalidOperationException("Wrong configured trigger bytes");
                 await upperConnection.GetStream().WriteAsync(Encoding.ASCII.GetBytes("PCB001\r"), stop.Token);
                 await upperConnection.GetStream().WriteAsync(Encoding.ASCII.GetBytes("\nPCB001\r\n"), stop.Token);
                 await lower.GetStream().WriteAsync(Encoding.ASCII.GetBytes("PCB001\nNOREAD\n"), stop.Token);
@@ -56,6 +62,9 @@ internal static class ScannerProfilesSelfTest
                     }
                     await Task.Delay(50, stop.Token);
                 }
+                var snapshots = store.DeviceSnapshots();
+                if (snapshots.Count != 2 || snapshots.Any(s => s.State != "connected" || s.Total != 2))
+                    throw new InvalidOperationException("Device status/statistics not independent");
                 var events = store.PendingBatch(10);
                 if (events.Count(e => e.DeviceId == "SC2-UPPER") != 2 ||
                     events.Count(e => e.DeviceId == "SC2-LOWER") != 2)

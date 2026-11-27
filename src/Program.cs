@@ -72,6 +72,8 @@ public static class AppLog
 public sealed class Settings
 {
     public List<ScannerProfile> ScannerProfiles { get; set; } = new();
+    internal string TriggerOnHex { get; set; } = "";
+    internal string TriggerOffHex { get; set; } = "";
     public string Mode { get; set; } = "connect";
     public string Host { get; set; } = "127.0.0.1";
     public int Port { get; set; } = 55256;
@@ -323,6 +325,7 @@ public static class CollectorRunner
                     store.SetDeviceState(cfg.DeviceId, "connecting");
                     AppLog.WriteLine($"[Collector] Connecting to {cfg.Host}:{cfg.Port} ({cfg.DeviceId})");
                     await tcp.ConnectAsync(cfg.Host, cfg.Port, token);
+                    using var trigger = store.RegisterTrigger(cfg.DeviceId, tcp.GetStream(), cfg.TriggerOnHex, cfg.TriggerOffHex, token);
                     store.SetDeviceState(cfg.DeviceId, "connected");
                     AppLog.WriteLine($"[Collector] Scanner connected ({cfg.DeviceId})");
                     await ReadAsync(tcp.GetStream(), cfg, store, $"{cfg.Host}:{cfg.Port}", token);
