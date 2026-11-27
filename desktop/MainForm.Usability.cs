@@ -115,8 +115,16 @@ internal sealed partial class MainForm
                     form.PerformLayout();
                     Application.DoEvents();
                     form.AssertTextFits("AppHeading", "AppSubtitle");
-                    if (page == 0) form.AssertTextFits("ScannerConnectionNote", "OverviewSyncDetail");
-                    if (page == 3) form.AssertTextFits("CredentialState", "ShowSecret", "TransportHelp", "SyncWarning");
+                    if (page == 0)
+                    {
+                        form.AssertTextFits("ScannerConnectionNote", "OverviewSyncDetail", "StatTotal", "StatAccepted", "StatDuplicates", "StatNoReads");
+                        form.AssertCountersFit(form._total, form._accepted, form._duplicates, form._noReads);
+                    }
+                    if (page == 3)
+                    {
+                        form.AssertTextFits("CredentialState", "ShowSecret", "TransportHelp", "SyncWarning");
+                        form.AssertCountersFit(form._syncPending, form._syncSynced, form._syncRejected);
+                    }
                     string? output = Environment.GetEnvironmentVariable("HF811_LAYOUT_TEST_OUTPUT");
                     if (!string.IsNullOrWhiteSpace(output))
                     {
@@ -131,6 +139,30 @@ internal sealed partial class MainForm
             form.Hide();
         }
         finally { form._timer.Dispose(); form._tray.Dispose(); }
+    }
+
+    private void AssertCountersFit(params Label[] counters)
+    {
+        foreach (var counter in counters)
+        {
+            string original = counter.Text;
+            Font originalFont = counter.Font;
+            try
+            {
+                // Reproduce enlarged Windows fonts even on a 96-DPI CI desktop.
+                using var enlarged = new Font(originalFont.FontFamily, originalFont.Size * 1.5f, originalFont.Style);
+                counter.Font = enlarged;
+                counter.Text = "0";
+                counter.Parent!.PerformLayout();
+                AssertTextFits(counter.Name);
+                var parent = counter.Parent!;
+                var caption = parent.Controls.OfType<Label>().Single(x => x != counter);
+                if (counter.Bottom > caption.Top || caption.Bottom > parent.ClientSize.Height ||
+                    counter.Bottom > parent.ClientSize.Height)
+                    throw new InvalidOperationException("Counter layout overlaps: " + counter.Name);
+            }
+            finally { counter.Font = originalFont; counter.Text = original; counter.Parent!.PerformLayout(); }
+        }
     }
 
     private void AssertTextFits(params string[] names)

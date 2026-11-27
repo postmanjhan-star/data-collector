@@ -109,7 +109,7 @@ internal sealed partial class MainForm
         var status = SettingsCard("同步狀態", "僅統計伺服器已確認的紀錄");
         status.Margin = new Padding(12, 0, 0, 7);
         var stateContent = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 6 };
-        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 128));
+        stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 175));
         stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 53));
         stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         stateContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
@@ -117,6 +117,7 @@ internal sealed partial class MainForm
         stateContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var counters = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
         for (int i = 0; i < 3; i++) counters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+        _syncPending.Name = "SyncPending"; _syncSynced.Name = "SyncSynced"; _syncRejected.Name = "SyncRejected";
         counters.Controls.Add(SyncCounter("待上傳", _syncPending, Color.FromArgb(181, 110, 31)), 0, 0);
         counters.Controls.Add(SyncCounter("已同步", _syncSynced, Color.FromArgb(24, 145, 105)), 1, 0);
         counters.Controls.Add(SyncCounter("遭拒收", _syncRejected, Color.FromArgb(178, 71, 67)), 2, 0);
@@ -167,12 +168,17 @@ internal sealed partial class MainForm
         p.Margin = new Padding(0, 0, 6, 5);
         p.Padding = new Padding(8, 9, 8, 9);
         var grid = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 62));
-        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        value.AutoSize = true;
+        value.Dock = DockStyle.Top;
+        value.Margin = new Padding(0, 0, 0, 6);
         value.TextAlign = ContentAlignment.MiddleCenter;
         value.ForeColor = ink;
         grid.Controls.Add(value, 0, 0);
         var t = MLabel(caption, 9, false, MutedModern);
+        t.AutoSize = true;
+        t.Dock = DockStyle.Top;
         t.TextAlign = ContentAlignment.MiddleCenter;
         grid.Controls.Add(t, 0, 1);
         p.Controls.Add(grid);

@@ -138,9 +138,9 @@ internal sealed partial class MainForm
     private Panel BuildOverview()
     {
         var page = new Panel { Dock = DockStyle.Fill, BackColor = BackColor, AutoScroll = true };
-        var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 490, ColumnCount = 1, RowCount = 3 };
+        var grid = new TableLayoutPanel { Dock = DockStyle.Top, Height = 620, ColumnCount = 1, RowCount = 3 };
         grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         page.Controls.Add(grid);
         // Top-docked content can scroll vertically rather than compressing nested labels.
@@ -173,6 +173,8 @@ internal sealed partial class MainForm
 
         var stats = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
         for (int i = 0; i < 4; i++) stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        _total.Name = "StatTotal"; _accepted.Name = "StatAccepted";
+        _duplicates.Name = "StatDuplicates"; _noReads.Name = "StatNoReads";
         stats.Controls.Add(Stat("掃描總筆數", _total, InkModern), 0, 0);
         stats.Controls.Add(Stat("有效資料", _accepted, Color.FromArgb(16, 147, 112)), 1, 0);
         stats.Controls.Add(Stat("重複掃描", _duplicates, InkModern), 2, 0);
@@ -421,17 +423,21 @@ internal sealed partial class MainForm
     {
         var p = MCard();
         p.Margin = new Padding(0, 0, 12, 8);
-        p.Padding = new Padding(14, 14, 12, 12);
+        p.Padding = new Padding(12, 8, 10, 8);
         var content = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
-        content.RowStyles.Add(new RowStyle(SizeType.Percent, 65));
-        content.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
-        value.AutoSize = false;
-        value.Dock = DockStyle.Fill;
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        value.AutoSize = true;
+        value.Dock = DockStyle.Top;
+        value.Margin = new Padding(0, 0, 0, 6);
         value.TextAlign = ContentAlignment.MiddleLeft;
         value.Font = new Font("Segoe UI", 25, FontStyle.Bold);
         value.ForeColor = color;
         content.Controls.Add(value, 0, 0);
-        content.Controls.Add(MLabel(caption, 10, false, MutedModern), 0, 1);
+        var description = MLabel(caption, 10, false, MutedModern);
+        description.AutoSize = true;
+        description.Dock = DockStyle.Top;
+        content.Controls.Add(description, 0, 1);
         p.Controls.Add(content);
         return p;
     }
