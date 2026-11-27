@@ -48,6 +48,9 @@ internal sealed partial class MainForm
             _noRead, _apiPort, _dbPath, _syncEnabled, _collectorId, _serverUrl, _serverKey, _syncInterval, _batchSize,
             _transportChoice, _showSecret, _editScannerProfiles })
             c.Enabled = editable;
+        if (_scannerProfiles.Count > 0)
+            foreach (Control c in new Control[] { _mode, _host, _device, _port, _framing, _reconnect, _idleGap })
+                c.Enabled = false;
     }
 
     private void BrowseDatabase()
@@ -69,6 +72,7 @@ internal sealed partial class MainForm
         if (MessageBox.Show(this, "將目前表單改為離線模擬設定，使用新的 SQLite 並停用背景上傳。原資料庫不變；請先備份原設定，確認後再啟動收集。", "準備離線測試", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         _scannerProfiles.Clear();
         RefreshScannerProfiles();
+        UpdateButtons();
         _mode.SelectedItem = "connect";
         _host.Text = "127.0.0.1";
         _port.Value = 55256;

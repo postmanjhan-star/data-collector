@@ -39,6 +39,7 @@ public static class MqttIntegrationTest
             {
                 store.Save(Encoding.ASCII.GetBytes("PCB001"), "SC2-UPPER", "loopback");
                 store.Save(Encoding.ASCII.GetBytes("PCB001"), "SC2-UPPER", "loopback");
+                store.Save(Encoding.ASCII.GetBytes("PCB001"), "SC2-LOWER", "loopback");
                 store.Save(Encoding.ASCII.GetBytes("NOREAD"), "SC2-LOWER", "loopback");
                 original = store.PendingBatch(10);
                 var offline = new Settings
@@ -49,7 +50,7 @@ public static class MqttIntegrationTest
                     SyncBatchSize = 10
                 };
                 using var agent = new SyncAgent(offline, store);
-                if (await agent.SyncOnceAsync(token) != 0 || store.GetSyncState().Pending != 3)
+                if (await agent.SyncOnceAsync(token) != 0 || store.GetSyncState().Pending != 4)
                     throw new InvalidOperationException("Offline records lost");
             }
             using (var store = new ScanStore(cfg.DatabasePath, 2000, "NOREAD"))
@@ -57,9 +58,11 @@ public static class MqttIntegrationTest
                 if (!store.PendingBatch(10).SequenceEqual(original))
                     throw new InvalidOperationException("Pending events changed after restart");
                 using var agent = new SyncAgent(cfg, store);
-                if (await agent.SyncOnceAsync(token) != 3 || store.GetSyncState().Synced != 3)
+                if (await agent.SyncOnceAsync(token) != 4 || store.GetSyncState().Synced != 4)
                     throw new InvalidOperationException("Soda commit/ACK failed");
 
+                if (original.Count(e => e.DeviceId == "SC2-UPPER") != 2 || original.Count(e => e.DeviceId == "SC2-LOWER") != 2 || original.Count(e => e.IsDuplicate) != 1 || original.Count(e => e.IsNoRead) != 1)
+                    throw new InvalidOperationException("Upper/lower raw scan identity or classification lost");
                 var committed = ReadEvents(soda, cfg.CollectorId);
                 if (!committed.Select(row => row.Event).SequenceEqual(original.OrderBy(e => e.EventId, StringComparer.Ordinal)))
                     throw new InvalidOperationException("Soda did not commit the submitted events");

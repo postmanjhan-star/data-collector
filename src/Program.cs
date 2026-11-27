@@ -320,11 +320,11 @@ public static class CollectorRunner
                 try
                 {
                     using var tcp = new TcpClient();
-                    AppLog.WriteLine($"[Collector] Connecting to {cfg.Host}:{cfg.Port}");
+                    AppLog.WriteLine($"[Collector] Connecting to {cfg.Host}:{cfg.Port} ({cfg.DeviceId})");
                     await tcp.ConnectAsync(cfg.Host, cfg.Port, token);
-                    AppLog.WriteLine("[Collector] Scanner connected");
+                    AppLog.WriteLine($"[Collector] Scanner connected ({cfg.DeviceId})");
                     await ReadAsync(tcp.GetStream(), cfg, store, $"{cfg.Host}:{cfg.Port}", token);
-                    AppLog.WriteLine("[Collector] Scanner disconnected");
+                    AppLog.WriteLine($"[Collector] Scanner disconnected ({cfg.DeviceId})");
                 }
                 catch (Exception ex) when (ex is IOException or SocketException or InvalidDataException)
                 { AppLog.WriteLine($"[Collector] Connection error: {ex.Message}"); }

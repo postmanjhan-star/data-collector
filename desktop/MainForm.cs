@@ -560,7 +560,7 @@ internal sealed partial class MainForm : Form
         _stop.Enabled = started && !_stopping;
         _simulate.Text = _simulatorCts == null ? "模擬掃描" : "停止模擬";
         _simulate.Enabled = !_stopping && (!started || _simulatorCts != null);
-        _discover.Enabled = !started && _simulatorCts == null && !_stopping;
+        _discover.Enabled = !started && _simulatorCts == null && !_stopping && _scannerProfiles.Count == 0;
         _syncNow.Enabled = started && !_stopping && _syncAgent?.Enabled == true && !_manualSyncBusy;
         SetConfigurationEditable(!started && !_stopping && _simulatorCts == null);
         if (!started) { _overviewSync.Text = "尚未啟動"; _overviewSyncDetail.Text = "啟動後顯示 SQLite 與伺服器回執"; _syncStatusText.Text = "Collector 尚未啟動"; _syncErrorText.Text = ""; }

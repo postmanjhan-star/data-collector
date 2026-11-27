@@ -84,6 +84,7 @@ internal sealed partial class MainForm
                 ScannerProfile.ValidateAll(profiles.ToList(), (int)_apiPort.Value);
                 _scannerProfiles = profiles.ToList();
                 RefreshScannerProfiles();
+                UpdateButtons();
                 dialog.DialogResult = DialogResult.OK;
             }
             catch (Exception ex) { MessageBox.Show(dialog, ex.Message, "設定錯誤"); }
