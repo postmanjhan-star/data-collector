@@ -75,6 +75,7 @@ public static class ScannerProfilesRunner
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token);
         var workers = config.ScannerProfiles.Select(profile => Task.Run(async () =>
         {
+            store.SetDeviceState(profile.DeviceId.Trim(), "starting");
             var endpoint = profile.ToEndpoint();
             if (profile.Transport == "serial") await Task.Run(() => RunSerial(profile, store, stop.Token), stop.Token);
             else if (profile.Transport == "tcp-listen") await RunListener(profile, endpoint, store, stop.Token);
@@ -101,6 +102,7 @@ public static class ScannerProfilesRunner
         server.Start();
         try
         {
+            store.SetDeviceState(endpoint.DeviceId, "listening");
             AppLog.WriteLine($"[Scanner {endpoint.DeviceId}] Listening on {endpoint.Host}:{endpoint.Port}");
             while (!token.IsCancellationRequested)
             {
@@ -112,10 +114,12 @@ public static class ScannerProfilesRunner
                     AppLog.WriteLine($"[Scanner {endpoint.DeviceId}] Unexpected peer rejected");
                     continue;
                 }
+                store.SetDeviceState(endpoint.DeviceId, "connected");
                 AppLog.WriteLine($"[Scanner {endpoint.DeviceId}] Connected: {peer}");
                 try { await CollectorRunner.ReadAsync(client.GetStream(), endpoint, store, peer?.ToString() ?? "unknown", token); }
                 catch (Exception ex) when (ex is IOException or SocketException or InvalidDataException)
                 { AppLog.WriteLine($"[Scanner {endpoint.DeviceId}] Read error: {ex.Message}"); }
+                finally { store.SetDeviceState(endpoint.DeviceId, "listening"); }
             }
         }
         finally { server.Stop(); }
@@ -130,7 +134,9 @@ public static class ScannerProfilesRunner
             {
                 using var port = new SerialPort(profile.Host.Trim(), profile.BaudRate, profile.Parity, profile.DataBits, profile.StopBits)
                 { Handshake = profile.Handshake, ReadTimeout = Math.Clamp(profile.IdleGapMs, 1, 100) };
+                store.SetDeviceState(profile.DeviceId.Trim(), "connecting");
                 port.Open();
+                store.SetDeviceState(profile.DeviceId.Trim(), "connected");
                 AppLog.WriteLine($"[Scanner {profile.DeviceId}] Serial open: {port.PortName}");
                 var framer = profile.Framing == "idle" ? null : new BarcodeFramer(profile.Framing);
                 using var pending = new MemoryStream();
@@ -163,7 +169,7 @@ public static class ScannerProfilesRunner
                     AppLog.WriteLine($"[Scanner {profile.DeviceId}] Incomplete serial frame on stop");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
-            { AppLog.WriteLine($"[Scanner {profile.DeviceId}] Serial error: {ex.Message}"); }
+            { store.SetDeviceState(profile.DeviceId.Trim(), "retrying"); AppLog.WriteLine($"[Scanner {profile.DeviceId}] Serial error: {ex.Message}"); }
             if (token.WaitHandle.WaitOne(profile.ReconnectMs)) break;
         }
     }

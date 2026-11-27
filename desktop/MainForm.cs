@@ -335,6 +335,7 @@ internal sealed partial class MainForm : Form
             }
 
             _store = new ScanStore(cfg.DatabasePath, cfg.DedupWindowMs, cfg.NoReadValue);
+            foreach (var profile in cfg.ScannerProfiles) _store.SetDeviceState(profile.DeviceId.Trim(), "starting");
             _syncAgent = new SyncAgent(cfg, _store);
             _apiRunningPort = cfg.ApiPort;
             _collectorCts = new CancellationTokenSource();
@@ -424,7 +425,7 @@ internal sealed partial class MainForm : Form
         if (_collectorCts != null) return;
         if (_scannerProfiles.Count > 0)
         {
-            MessageBox.Show(this, "單機模擬不會連線到實體設備。請先使用準備離線測試，或清空掃描器清單。");
+            await StartMultiSimulatorAsync();
             return;
         }
         if (_syncEnabled.Checked && MessageBox.Show(this, "模擬資料會送至設定的伺服器。只允許對隔離測試環境執行。確定繼續？", "模擬上傳確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;

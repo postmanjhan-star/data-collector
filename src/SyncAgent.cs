@@ -92,6 +92,8 @@ public sealed class SyncAgent : IDisposable
     };
     private readonly SemaphoreSlim _mutex = new(1, 1);
     private int _failures;
+    private readonly MqttBatchTransport.Session? _mqtt;
+    public int MqttConnectionCount => _mqtt?.ConnectionCount ?? 0;
     public string? LastError { get; private set; }
     public DateTimeOffset? LastSuccessUtc { get; private set; }
     public DateTimeOffset? LastAttemptUtc { get; private set; }
@@ -103,6 +105,8 @@ public sealed class SyncAgent : IDisposable
         _store = store;
         ServerSyncSettings.Validate(cfg.SyncEnabled, cfg.CollectorId, cfg.ServerUrl,
             cfg.SyncIntervalSeconds, cfg.SyncBatchSize);
+        if (cfg.SyncEnabled && MqttBatchTransport.IsMqtt(cfg.ServerUrl))
+            _mqtt = new MqttBatchTransport.Session(cfg.ServerUrl, cfg.CollectorId);
     }
 
     public async Task RunAsync(CancellationToken token)
@@ -141,7 +145,7 @@ public sealed class SyncAgent : IDisposable
                 UploadReceipt? receipt;
                 if (MqttBatchTransport.IsMqtt(_cfg.ServerUrl))
                 {
-                    receipt = await MqttBatchTransport.SendAsync(_cfg.ServerUrl, key, envelope, token);
+                    receipt = await _mqtt!.SendAsync(key, envelope, token);
                 }
                 else
                 {
@@ -180,6 +184,7 @@ public sealed class SyncAgent : IDisposable
 
     public void Dispose()
     {
+        _mqtt?.Dispose();
         _http.Dispose();
         _mutex.Dispose();
     }

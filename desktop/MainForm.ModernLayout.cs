@@ -199,8 +199,8 @@ internal sealed partial class MainForm
         _lastCode.TextAlign = ContentAlignment.MiddleLeft;
         latestContent.Controls.Add(_lastCode, 0, 1);
         latestContent.Controls.Add(MLabel("此為原始掃描紀錄，不代表完成過站或扣料。", 9.5f, false, MutedModern), 0, 2);
-        var folder = MLink("開啟資料與日誌資料夾  →");
-        folder.Click += (_, _) => OpenDataFolder();
+        var folder = MLink("設備即時狀態與統計  →");
+        folder.Click += (_, _) => ShowDeviceMonitor();
         latestContent.Controls.Add(folder, 0, 3);
         latest.Controls.Add(latestContent);
         bottom.Controls.Add(latest, 0, 0);

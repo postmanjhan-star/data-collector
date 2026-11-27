@@ -9,3 +9,6 @@ Legacy config with empty ScannerProfiles retains original single TCP behavior. I
 - Per-device dedup uses (device_id, barcode); same barcode from upper and lower is preserved. Never infer PCB count from scan count.
 - GUI simulator is single-device only; offline preparation clears profile list in the form and chooses a new SQLite path. For two readers use separate CLI simulator processes on loopback ports, not actual production readers.
 - TCP connect/listen and independent identities covered by CLI self-test. Physical serial port, RS485 electrical configuration and HF811 actual trigger behavior must be tested onsite. Profinet, EtherNet/IP and Modbus TCP require documented device/PLC data map and are not implemented.
+
+## v1.6.3
+Device monitor opens from overview and reads lifetime raw-scan counters per device from the local SQLite database. Multi-profile connection states are updated directly by the transport. Offline preparation offers single or dual local simulator. MQTT SyncAgent reuses its session for nonempty batches, reconnects/resubscribes on failure; SQLite remains authoritative. This is not a durable MQTT broker session (clean session is intentional).

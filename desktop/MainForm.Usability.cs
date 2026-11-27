@@ -71,6 +71,11 @@ internal sealed partial class MainForm
         }
         if (MessageBox.Show(this, "將目前表單改為離線模擬設定，使用新的 SQLite 並停用背景上傳。原資料庫不變；請先備份原設定，確認後再啟動收集。", "準備離線測試", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         _scannerProfiles.Clear();
+        if (MessageBox.Show(this, "是否使用上下雙掃模擬？\n是：兩台本機 TCP 掃描器；否：原本單台模擬。", "模擬設備", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+        {
+            _scannerProfiles.Add(new ScannerProfile { DeviceId = "SIM-UPPER", Port = 55256 });
+            _scannerProfiles.Add(new ScannerProfile { DeviceId = "SIM-LOWER", Port = 55257 });
+        }
         RefreshScannerProfiles();
         UpdateButtons();
         _mode.SelectedItem = "connect";
@@ -83,6 +88,7 @@ internal sealed partial class MainForm
         _syncEnabled.Checked = false;
         _serverKey.Clear();
         _collectorId.Text = "SIM-" + Guid.NewGuid().ToString("N");
+        UpdateButtons();
         UpdateConnectionLine();
         RefreshTransportHint();
         SwitchPage(1);

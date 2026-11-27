@@ -65,36 +65,128 @@ public static class MqttBatchTransport
         [property: JsonPropertyName("payload_sha256")] string PayloadSha256,
         [property: JsonPropertyName("receipt")] UploadReceipt Receipt);
 
+    // Legacy one-shot callers remain compatible; SyncAgent owns a reusable connection.
     public static async Task<UploadReceipt> SendAsync(string url, string key, UploadEnvelope envelope, CancellationToken token)
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(15));
-        var ct = deadline.Token;
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(envelope, Json);
-        var sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        var root = Root(envelope.CollectorId);
-        var factory = new MqttFactory();
-        using var client = factory.CreateMqttClient();
-        var completion = new TaskCompletionSource<UploadReceipt>(TaskCreationOptions.RunContinuationsAsynchronously);
-        client.ApplicationMessageReceivedAsync += e =>
+        using var session = new Session(url, envelope.CollectorId);
+        return await session.SendAsync(key, envelope, token);
+    }
+
+    public sealed class Session : IDisposable
+    {
+        private readonly string _url, _id, _root;
+        private readonly MqttFactory _factory = new();
+        private readonly SemaphoreSlim _serial = new(1, 1);
+        private readonly object _gate = new();
+        private IMqttClient? _client;
+        private string? _key;
+        private string? _expectedHash;
+        private TaskCompletionSource<UploadReceipt>? _pending;
+        private bool _subscribed;
+        public int ConnectionCount { get; private set; }
+        public bool IsConnected => _client?.IsConnected == true && _subscribed;
+
+        public Session(string url, string id)
         {
-            if (e.ApplicationMessage.Topic != root + "/ack" || e.ApplicationMessage.Retain ||
+            Validate(url, id);
+            _url = url; _id = id; _root = Root(id);
+        }
+
+        private Task OnMessage(MqttApplicationMessageReceivedEventArgs e)
+        {
+            if (e.ApplicationMessage.Topic != _root + "/ack" || e.ApplicationMessage.Retain ||
+                e.ApplicationMessage.QualityOfServiceLevel != MqttQualityOfServiceLevel.AtLeastOnce ||
                 e.ApplicationMessage.PayloadSegment.Count > 1024 * 1024) return Task.CompletedTask;
             try
             {
                 var ack = JsonSerializer.Deserialize<Ack>(e.ApplicationMessage.PayloadSegment.ToArray(), Json);
-                if (ack?.CollectorId == envelope.CollectorId && ack.PayloadSha256 == sha && ack.Receipt is not null)
-                    completion.TrySetResult(ack.Receipt);
+                lock (_gate)
+                    if (ack?.CollectorId == _id && ack.PayloadSha256 == _expectedHash && ack.Receipt is not null)
+                        _pending?.TrySetResult(ack.Receipt);
             }
             catch (JsonException) { }
             return Task.CompletedTask;
-        };
-        await client.ConnectAsync(Options(url, envelope.CollectorId, key, false), ct);
-        await SubscribeAsync(client, factory, root + "/ack", ct);
-        var result = await client.PublishAsync(new MqttApplicationMessageBuilder()
-            .WithTopic(root + "/scans").WithPayload(bytes)
-            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).WithRetainFlag(false).Build(), ct);
-        if (!result.IsSuccess) throw new InvalidOperationException("MQTT publish failed");
-        return await completion.Task.WaitAsync(ct);
+        }
+
+        private void Reset()
+        {
+            var old = _client;
+            _client = null;
+            _subscribed = false;
+            _key = null;
+            if (old is null) return;
+            old.ApplicationMessageReceivedAsync -= OnMessage;
+            // Bound shutdown; never block indefinitely waiting for a dead network.
+            try
+            {
+                if (old.IsConnected)
+                {
+                    using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    old.DisconnectAsync(new MqttClientDisconnectOptions(), stop.Token).GetAwaiter().GetResult();
+                }
+            }
+            catch { /* network may already be gone */ }
+            old.Dispose();
+        }
+
+        private async Task<IMqttClient> EnsureAsync(string key, CancellationToken ct)
+        {
+            if (IsConnected && _key == key) return _client!;
+            Reset();
+            var client = _factory.CreateMqttClient();
+            _client = client;
+            client.ApplicationMessageReceivedAsync += OnMessage;
+            client.DisconnectedAsync += _ =>
+            {
+                lock (_gate)
+                {
+                    if (ReferenceEquals(_client, client))
+                    {
+                        _subscribed = false;
+                        _pending?.TrySetException(new IOException("MQTT disconnected before receipt"));
+                    }
+                }
+                return Task.CompletedTask;
+            };
+            await client.ConnectAsync(Options(_url, _id, key, false), ct);
+            await SubscribeAsync(client, _factory, _root + "/ack", ct);
+            _key = key;
+            _subscribed = true;
+            ConnectionCount++;
+            return client;
+        }
+
+        public async Task<UploadReceipt> SendAsync(string key, UploadEnvelope envelope, CancellationToken token)
+        {
+            if (envelope.CollectorId != _id) throw new ArgumentException("Collector identity changed");
+            await _serial.WaitAsync(token);
+            try
+            {
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+                deadline.CancelAfter(TimeSpan.FromSeconds(15));
+                var ct = deadline.Token;
+                var client = await EnsureAsync(key, ct);
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(envelope, Json);
+                var completion = new TaskCompletionSource<UploadReceipt>(TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (_gate)
+                {
+                    _expectedHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                    _pending = completion;
+                }
+                var result = await client.PublishAsync(new MqttApplicationMessageBuilder()
+                    .WithTopic(_root + "/scans").WithPayload(bytes)
+                    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce).WithRetainFlag(false).Build(), ct);
+                if (!result.IsSuccess) throw new InvalidOperationException("MQTT publish failed");
+                return await completion.Task.WaitAsync(ct);
+            }
+            catch { Reset(); throw; }
+            finally
+            {
+                lock (_gate) { _expectedHash = null; _pending = null; }
+                _serial.Release();
+            }
+        }
+
+        public void Dispose() { Reset(); _serial.Dispose(); }
     }
 }

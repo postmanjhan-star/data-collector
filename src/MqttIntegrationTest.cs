@@ -67,17 +67,26 @@ public static class MqttIntegrationTest
                 if (!committed.Select(row => row.Event).SequenceEqual(original.OrderBy(e => e.EventId, StringComparer.Ordinal)))
                     throw new InvalidOperationException("Soda did not commit the submitted events");
 
-                var replay = await MqttBatchTransport.SendAsync(url, key, new UploadEnvelope(cfg.CollectorId, original), token);
+                // The same SyncAgent must upload a second non-empty batch without reconnecting.
+                store.Save(Encoding.ASCII.GetBytes("PCB002"), "SC2-UPPER", "loopback");
+                if (await agent.SyncOnceAsync(token) != 1 || agent.MqttConnectionCount != 1)
+                    throw new InvalidOperationException("MQTT session not reused");
+                var allCommitted = ReadEvents(soda, cfg.CollectorId);
+                if (allCommitted.Count != 5) throw new InvalidOperationException("Second batch not committed");
+                // Do not connect a second client with the same ID while the agent is alive.
+                using var replaySession = new MqttBatchTransport.Session(url, cfg.CollectorId);
+                var replay = await replaySession.SendAsync(key, new UploadEnvelope(cfg.CollectorId, original), token);
                 if (!replay.AcknowledgedEventIds.SequenceEqual(original.Select(e => e.EventId)) ||
-                    replay.Rejected.Count != 0 || !ReadEvents(soda, cfg.CollectorId).SequenceEqual(committed))
+                    replay.Rejected.Count != 0 || !ReadEvents(soda, cfg.CollectorId).SequenceEqual(allCommitted))
                     throw new InvalidOperationException("Replay not idempotent");
 
                 var changed = original[0] with { Barcode = "CHANGED" };
-                var conflict = await MqttBatchTransport.SendAsync(url, key, new UploadEnvelope(cfg.CollectorId, new[] { changed }), token);
+                var conflict = await replaySession.SendAsync(key, new UploadEnvelope(cfg.CollectorId, new[] { changed }), token);
                 if (conflict.Rejected.Count != 1 || conflict.Rejected[0].EventId != changed.EventId ||
                     conflict.Rejected[0].Reason != "event_id already exists with different content" ||
-                    conflict.AcknowledgedEventIds.Count != 0 || !ReadEvents(soda, cfg.CollectorId).SequenceEqual(committed))
+                    conflict.AcknowledgedEventIds.Count != 0 || !ReadEvents(soda, cfg.CollectorId).SequenceEqual(allCommitted))
                     throw new InvalidOperationException("Soda failed UUID conflict check");
+                if (replaySession.ConnectionCount != 1) throw new InvalidOperationException("Replay session reconnected unexpectedly");
             }
             Console.WriteLine("MQTT SODA E2E PASS: offline SQLite, restart, commit ACK, replay, conflict");
             return 0;
